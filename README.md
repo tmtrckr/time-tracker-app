@@ -1,6 +1,6 @@
 # ⏱️ Time Tracker Application
 
-**Version**: 0.1.0
+**Version**: [0.2.0](CHANGELOG.md#020---2025-01-27)
 
 A desktop application for automatic time tracking that shows where your work time goes, with smart handling of "idle" time.
 
@@ -302,7 +302,7 @@ npm run tauri:build
 
 **Output Location**:
 - **Executable**: `backend/target/release/time-tracker-app.exe` (Windows)
-- **Installer**: `backend/target/release/bundle/msi/time-tracker-app_0.1.0_x64_en-US.msi`
+- **Installer**: `backend/target/release/bundle/msi/time-tracker-app_0.2.0_x64_en-US.msi`
 
 **Requirements**:
 - **Disk Space**: ~2-3GB for full build (includes dependencies)
