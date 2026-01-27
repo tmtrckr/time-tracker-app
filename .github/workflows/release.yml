@@ -272,27 +272,17 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      - name: Copy icons to backend directory
+      - name: Setup icons for Tauri build
         shell: bash
+        working-directory: backend
         run: |
-          echo "Current directory: $(pwd)"
-          echo "Listing public/icons:"
-          ls -la public/icons/ || echo "public/icons directory not found"
-          echo "Creating backend/icons directory..."
-          mkdir -p backend/icons
-          echo "Copying icons..."
-          if [ -f public/icons/icon.ico ]; then 
-            cp public/icons/icon.ico backend/icons/ && echo "Copied icon.ico"
-          else
-            echo "icon.ico not found in public/icons/"
-          fi
-          if [ -f public/icons/icon.png ]; then 
-            cp public/icons/icon.png backend/icons/ && echo "Copied icon.png"
-          else
-            echo "icon.png not found in public/icons/"
-          fi
-          echo "Verifying copied icons:"
-          ls -la backend/icons/ || echo "backend/icons directory is empty"
+          echo "Setting up icons directory..."
+          mkdir -p icons
+          echo "Copying icons from public/icons/..."
+          cp ../public/icons/icon.ico icons/ 2>&1 || echo "Failed to copy icon.ico"
+          cp ../public/icons/icon.png icons/ 2>&1 || echo "Failed to copy icon.png"
+          echo "Verifying icons in backend/icons/:"
+          ls -la icons/ || echo "icons directory is empty or doesn't exist"
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
