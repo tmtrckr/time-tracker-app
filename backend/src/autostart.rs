@@ -22,6 +22,14 @@ impl AutostartManager {
     pub fn enable(&self) -> Result<(), String> {
         let app_path_str = self.app_path.to_str().ok_or("Invalid app path")?;
         let args: &[&str] = &[];
+        #[cfg(target_os = "macos")]
+        let autostart = AutoLaunch::new(
+            &self.app_name,
+            app_path_str,
+            false, // use_launch_agent: false = use AppleScript (default)
+            args,
+        );
+        #[cfg(not(target_os = "macos"))]
         let autostart = AutoLaunch::new(
             &self.app_name,
             app_path_str,
@@ -34,6 +42,14 @@ impl AutostartManager {
     pub fn disable(&self) -> Result<(), String> {
         let app_path_str = self.app_path.to_str().ok_or("Invalid app path")?;
         let args: &[&str] = &[];
+        #[cfg(target_os = "macos")]
+        let autostart = AutoLaunch::new(
+            &self.app_name,
+            app_path_str,
+            false, // use_launch_agent: false = use AppleScript (default)
+            args,
+        );
+        #[cfg(not(target_os = "macos"))]
         let autostart = AutoLaunch::new(
             &self.app_name,
             app_path_str,
@@ -46,6 +62,14 @@ impl AutostartManager {
     pub fn is_enabled(&self) -> Result<bool, String> {
         let app_path_str = self.app_path.to_str().ok_or("Invalid app path")?;
         let args: &[&str] = &[];
+        #[cfg(target_os = "macos")]
+        let autostart = AutoLaunch::new(
+            &self.app_name,
+            app_path_str,
+            false, // use_launch_agent: false = use AppleScript (default)
+            args,
+        );
+        #[cfg(not(target_os = "macos"))]
         let autostart = AutoLaunch::new(
             &self.app_name,
             app_path_str,
