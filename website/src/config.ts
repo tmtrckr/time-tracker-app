@@ -30,10 +30,14 @@ export const getLatestReleaseUrl = () => {
  * @returns Correct path with base URL prefix if needed
  */
 export const getAssetPath = (path: string): string => {
-  // Remove leading slash if present, then add base URL
+  // Remove leading slash if present
   const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+  // Get base URL from Vite (e.g., '/time-tracker-app/' or '/')
   const baseUrl = import.meta.env.BASE_URL;
-  // Remove trailing slash from baseUrl if present
-  const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-  return `${cleanBaseUrl}${cleanBaseUrl ? '/' : ''}${cleanPath}`;
+  // Combine base URL with path, ensuring proper slashes
+  if (baseUrl === '/') {
+    return `/${cleanPath}`;
+  }
+  // baseUrl already has trailing slash from Vite config
+  return `${baseUrl}${cleanPath}`;
 };
