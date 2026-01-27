@@ -18,9 +18,15 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  prepare-release:
     if: ${{ github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master') || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      tag_exists: ${{ steps.check_tag.outputs.exists }}
+      skip: ${{ steps.check_last_commit.outputs.skip }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+      previous_tag: ${{ steps.get_previous_tag.outputs.previous_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -153,7 +159,7 @@ jobs:
           fi
 
       - name: Create tag
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_tag.outputs.exists == 'false' && steps.check_last_commit.outputs.skip == 'false'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -161,7 +167,7 @@ jobs:
           git push origin "v${{ steps.get_version.outputs.version }}"
 
       - name: Get previous tag
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_tag.outputs.exists == 'false' && steps.check_last_commit.outputs.skip == 'false'
         id: get_previous_tag
         run: |
           PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
@@ -172,7 +178,7 @@ jobs:
           echo "Previous tag: $PREVIOUS_TAG"
 
       - name: Generate changelog
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_tag.outputs.exists == 'false' && steps.check_last_commit.outputs.skip == 'false'
         id: changelog
         run: |
           PREVIOUS_TAG="${{ steps.get_previous_tag.outputs.previous_tag }}"
@@ -206,56 +212,6 @@ jobs:
           echo "Changelog:"
           cat changelog.txt
 
-      - name: Setup Node.js
-        if: steps.check_tag.outputs.exists == 'false'
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-
-      - name: Install dependencies
-        if: steps.check_tag.outputs.exists == 'false'
-        run: npm ci
-
-      - name: Setup Rust
-        if: steps.check_tag.outputs.exists == 'false'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-
-      - name: Cache Rust dependencies
-        if: steps.check_tag.outputs.exists == 'false'
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: "backend"
-
-      - name: Build for all platforms
-        if: steps.check_tag.outputs.exists == 'false'
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: .
-          tagName: v${{ steps.get_version.outputs.version }}
-          releaseName: "Time Tracker v${{ steps.get_version.outputs.version }}"
-          releaseBody: |
-            ## Release v${{ steps.get_version.outputs.version }}
-
-            ### 📦 What's Changed
-
-            ${{ steps.changelog.outputs.changelog }}
-
-            ### 🔗 Links
-
-            - [Full Changelog](https://github.com/${{ github.repository }}/compare/${{ steps.get_previous_tag.outputs.previous_tag }}...v${{ steps.get_version.outputs.version }})
-            - [Documentation](https://github.com/${{ github.repository }}#readme)
-            - [Report Issues](https://github.com/${{ github.repository }}/issues)
-
-            ---
-            *This release was automatically created after successful build.*
-          releaseDraft: false
-          prerelease: false
-
       - name: Skip release (version bump commit)
         if: steps.check_last_commit.outputs.skip == 'true'
         run: |
@@ -265,3 +221,86 @@ jobs:
         if: steps.check_tag.outputs.exists == 'true'
         run: |
           echo "Tag v${{ steps.get_version.outputs.version }} already exists. Skipping release creation."
+
+  build-release:
+    needs: prepare-release
+    if: needs.prepare-release.outputs.skip == 'false' && needs.prepare-release.outputs.tag_exists == 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "backend"
+
+      - name: Install system dependencies (Linux only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.0-dev \
+            build-essential \
+            curl \
+            wget \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Copy icons to backend directory
+        shell: bash
+        run: |
+          mkdir -p backend/icons
+          if [ -f public/icons/icon.ico ]; then cp public/icons/icon.ico backend/icons/; fi
+          if [ -f public/icons/icon.png ]; then cp public/icons/icon.png backend/icons/; fi
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: .
+          tagName: v${{ needs.prepare-release.outputs.version }}
+          releaseName: "Time Tracker v${{ needs.prepare-release.outputs.version }}"
+          releaseBody: |
+            ## Release v${{ needs.prepare-release.outputs.version }}
+
+            ### 📦 What's Changed
+
+            ${{ needs.prepare-release.outputs.changelog }}
+
+            ### 🔗 Links
+
+            - [Full Changelog](https://github.com/${{ github.repository }}/compare/${{ needs.prepare-release.outputs.previous_tag }}...v${{ needs.prepare-release.outputs.version }})
+            - [Documentation](https://github.com/${{ github.repository }}#readme)
+            - [Report Issues](https://github.com/${{ github.repository }}/issues)
+
+            ---
+            *This release was automatically created after successful build.*
+          releaseDraft: false
+          prerelease: false

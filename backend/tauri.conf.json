@@ -35,7 +35,8 @@
       "targets": "all",
       "identifier": "com.timetracker.app",
       "icon": [
-        "../public/icons/icon.ico"
+        "icons/icon.ico",
+        "icons/icon.png"
       ],
       "resources": [],
       "externalBin": [],
@@ -79,7 +80,7 @@
       }
     ],
     "systemTray": {
-      "iconPath": "../public/icons/icon.png",
+      "iconPath": "icons/icon.png",
       "iconAsTemplate": true
     }
   }
