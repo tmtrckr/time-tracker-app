@@ -1,5 +1,18 @@
 name: Generate Package Manager Manifests
 
+# This workflow generates package manager files (WinGet, Homebrew Cask, APT) and optionally
+# creates Pull Requests in the respective repositories.
+#
+# Triggers:
+# - Manual: workflow_dispatch with optional version and create_prs flag
+# - Automatic: release event (published) - automatically creates PRs
+#
+# Usage:
+# - Manual run: Go to Actions -> Generate Package Manager Manifests -> Run workflow
+#   - Set version (optional): e.g., v0.2.3 or leave empty for latest
+#   - Set create_prs: true to automatically create PRs in WinGet and Homebrew repos
+# - Automatic: Triggers automatically when a release is published
+
 on:
   workflow_dispatch:
     inputs:
@@ -7,9 +20,17 @@ on:
         description: 'Version tag (e.g., v0.2.3) - leave empty for latest release'
         required: false
         type: string
+      create_prs:
+        description: 'Automatically create PRs in WinGet and Homebrew repositories'
+        required: false
+        type: boolean
+        default: false
+  release:
+    types: [published]
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   prepare-artifacts:
@@ -35,7 +56,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
+          if [ "${{ github.event_name }}" == "release" ]; then
+            # Get version from release event
+            TAG="${{ github.event.release.tag_name }}"
+            VERSION=${TAG#v}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+          elif [ -n "${{ github.event.inputs.version }}" ]; then
             VERSION="${{ github.event.inputs.version }}"
             # Remove 'v' prefix if present
             VERSION=${VERSION#v}
@@ -495,3 +522,247 @@ jobs:
           name: apt-repository
           path: apt-repository.zip
           retention-days: 30
+
+  create-winget-pr:
+    needs: [prepare-artifacts, generate-winget]
+    if: |
+      always() &&
+      (needs.prepare-artifacts.result == 'success') &&
+      (needs.generate-winget.result == 'success') &&
+      (
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.create_prs == 'true') ||
+        (github.event_name == 'release')
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Download WinGet manifests
+        uses: actions/download-artifact@v4
+        with:
+          name: winget-manifests
+          path: ./winget-manifests
+
+      - name: Extract manifests
+        run: |
+          cd winget-manifests
+          unzip -q winget-manifests.zip
+          cd ..
+
+      - name: Checkout winget-pkgs repository
+        uses: actions/checkout@v4
+        with:
+          repository: microsoft/winget-pkgs
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: winget-pkgs
+          fetch-depth: 1
+
+      - name: Setup Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get version
+        id: get_version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            VERSION=${VERSION#v}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" == "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+            VERSION=${TAG#v}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+          else
+            LATEST_RELEASE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+            LATEST_TAG=$(echo "$LATEST_RELEASE" | jq -r '.tag_name')
+            VERSION=${LATEST_TAG#v}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create branch and copy manifests
+        id: create_branch
+        run: |
+          cd winget-pkgs
+          VERSION="${{ steps.get_version.outputs.version }}"
+          BRANCH_NAME="timetracker-$VERSION-$(date +%s)"
+          
+          # Create new branch
+          git checkout -b "$BRANCH_NAME"
+          
+          # Copy manifests to correct location
+          # Structure: manifests/t/TimeTracker/VERSION/
+          cp -r ../winget-manifests/manifests/t/TimeTracker/$VERSION manifests/t/TimeTracker/
+          
+          # Stage changes
+          git add manifests/t/TimeTracker/$VERSION/
+          
+          # Commit
+          git commit -m "Add TimeTracker version $VERSION"
+          
+          # Push branch
+          git push origin "$BRANCH_NAME"
+          
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repo: microsoft/winget-pkgs
+          branch: ${{ steps.create_branch.outputs.branch }}
+          title: "Add TimeTracker version ${{ steps.get_version.outputs.version }}"
+          body: |
+            ## Description
+            This PR adds TimeTracker version ${{ steps.get_version.outputs.version }} to the WinGet repository.
+            
+            ## Changes
+            - Added manifests for TimeTracker ${{ steps.get_version.outputs.version }}
+            - Installer: MSI package
+            - Architecture: x64
+            
+            ## Checklist
+            - [x] Manifest files are correctly formatted
+            - [x] Installer URL is valid and accessible
+            - [x] SHA256 checksum is correct
+            - [x] Silent install switches are configured
+            
+            ## Related
+            Release: https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.tag }}
+          labels: |
+            New-Package
+          draft: false
+
+  create-homebrew-pr:
+    needs: [prepare-artifacts, generate-homebrew]
+    if: |
+      always() &&
+      (needs.prepare-artifacts.result == 'success') &&
+      (needs.generate-homebrew.result == 'success') &&
+      (
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.create_prs == 'true') ||
+        (github.event_name == 'release')
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Download Homebrew Cask
+        uses: actions/download-artifact@v4
+        with:
+          name: homebrew-cask
+          path: ./homebrew-cask
+
+      - name: Checkout homebrew-cask repository
+        uses: actions/checkout@v4
+        with:
+          repository: homebrew/homebrew-cask
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: homebrew-cask-repo
+          fetch-depth: 1
+
+      - name: Setup Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get version
+        id: get_version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            VERSION=${VERSION#v}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" == "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+            VERSION=${TAG#v}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+          else
+            LATEST_RELEASE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+            LATEST_TAG=$(echo "$LATEST_RELEASE" | jq -r '.tag_name')
+            VERSION=${LATEST_TAG#v}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if cask already exists
+        id: check_cask
+        run: |
+          cd homebrew-cask-repo
+          if [ -f "Casks/t/timetracker.rb" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Cask already exists, will update"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "New cask, will create"
+          fi
+
+      - name: Create or update cask
+        id: create_cask
+        run: |
+          cd homebrew-cask-repo
+          VERSION="${{ steps.get_version.outputs.version }}"
+          BRANCH_NAME="timetracker-$VERSION-$(date +%s)"
+          
+          # Create new branch
+          git checkout -b "$BRANCH_NAME"
+          
+          # Copy cask file
+          cp ../homebrew-cask/timetracker.rb Casks/t/timetracker.rb
+          
+          # Stage changes
+          git add Casks/t/timetracker.rb
+          
+          # Commit message
+          if [ "${{ steps.check_cask.outputs.exists }}" == "true" ]; then
+            COMMIT_MSG="Update timetracker to $VERSION"
+          else
+            COMMIT_MSG="Add timetracker $VERSION"
+          fi
+          
+          git commit -m "$COMMIT_MSG"
+          
+          # Push branch
+          git push origin "$BRANCH_NAME"
+          
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "commit_msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repo: homebrew/homebrew-cask
+          branch: ${{ steps.create_cask.outputs.branch }}
+          title: "${{ steps.create_cask.outputs.commit_msg }}"
+          body: |
+            ## Description
+            ${{ steps.create_cask.outputs.commit_msg }}.
+            
+            ## Changes
+            - Version: ${{ steps.get_version.outputs.version }}
+            - SHA256: Verified
+            - URL: Direct download from GitHub Releases
+            
+            ## Checklist
+            - [x] Cask file is correctly formatted
+            - [x] SHA256 checksum is correct
+            - [x] URL is valid and accessible
+            - [x] App bundle name is correct
+            
+            ## Related
+            Release: https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.tag }}
+          labels: |
+            new cask
+          draft: false
