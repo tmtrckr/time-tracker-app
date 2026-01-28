@@ -167,30 +167,30 @@ jobs:
           
           $MANIFEST_PATH = "manifests\t\$PRODUCT_NAME\$VERSION\defaultLocale.yaml"
           
-          @"
-          # Created with GitHub Actions
-          PackageIdentifier: $PACKAGE_ID
-          Version: $VERSION
-          PackageLocale: en-US
-          Publisher: $PUBLISHER
-          PublisherUrl: https://github.com/${{ github.repository }}
-          PublisherSupportUrl: https://github.com/${{ github.repository }}/issues
-          Author: $PUBLISHER
-          PackageName: $PRODUCT_NAME
-          PackageUrl: https://github.com/${{ github.repository }}
-          License: MIT
-          LicenseUrl: https://github.com/${{ github.repository }}/blob/main/LICENSE
-          Copyright: Copyright (c) 2026 bthos
-          CopyrightUrl: https://github.com/${{ github.repository }}
-          ShortDescription: $SHORT_DESC
-          Description: $DESCRIPTION
-          Tags:
-            - time-tracking
-            - productivity
-            - pomodoro
-            - time-management
-          Moniker: timetracker
-"@ | Out-File -FilePath $MANIFEST_PATH -Encoding UTF8
+          $manifestContent = "# Created with GitHub Actions`n"
+          $manifestContent += "PackageIdentifier: $PACKAGE_ID`n"
+          $manifestContent += "Version: $VERSION`n"
+          $manifestContent += "PackageLocale: en-US`n"
+          $manifestContent += "Publisher: $PUBLISHER`n"
+          $manifestContent += "PublisherUrl: https://github.com/${{ github.repository }}`n"
+          $manifestContent += "PublisherSupportUrl: https://github.com/${{ github.repository }}/issues`n"
+          $manifestContent += "Author: $PUBLISHER`n"
+          $manifestContent += "PackageName: $PRODUCT_NAME`n"
+          $manifestContent += "PackageUrl: https://github.com/${{ github.repository }}`n"
+          $manifestContent += "License: MIT`n"
+          $manifestContent += "LicenseUrl: https://github.com/${{ github.repository }}/blob/main/LICENSE`n"
+          $manifestContent += "Copyright: Copyright (c) 2026 bthos`n"
+          $manifestContent += "CopyrightUrl: https://github.com/${{ github.repository }}`n"
+          $manifestContent += "ShortDescription: $SHORT_DESC`n"
+          $manifestContent += "Description: $DESCRIPTION`n"
+          $manifestContent += "Tags:`n"
+          $manifestContent += "  - time-tracking`n"
+          $manifestContent += "  - productivity`n"
+          $manifestContent += "  - pomodoro`n"
+          $manifestContent += "  - time-management`n"
+          $manifestContent += "Moniker: timetracker`n"
+          
+          Set-Content -Path $MANIFEST_PATH -Value $manifestContent -Encoding UTF8
 
       - name: Generate installer.yaml
         run: |
@@ -202,22 +202,22 @@ jobs:
           
           $MANIFEST_PATH = "manifests\t\$PRODUCT_NAME\$VERSION\installer.yaml"
           
-          @"
-          # Created with GitHub Actions
-          PackageIdentifier: $PACKAGE_ID
-          Version: $VERSION
-          InstallerType: msi
-          Architecture: x64
-          InstallerUrl: $MSI_URL
-          InstallerSha256: $MSI_SHA256
-          InstallerSwitches:
-            Silent: "/quiet"
-            SilentWithProgress: "/quiet /norestart"
-          InstallModes:
-            - silent
-            - silentWithProgress
-          Scope: machine
-"@ | Out-File -FilePath $MANIFEST_PATH -Encoding UTF8
+          $manifestContent = "# Created with GitHub Actions`n"
+          $manifestContent += "PackageIdentifier: $PACKAGE_ID`n"
+          $manifestContent += "Version: $VERSION`n"
+          $manifestContent += "InstallerType: msi`n"
+          $manifestContent += "Architecture: x64`n"
+          $manifestContent += "InstallerUrl: $MSI_URL`n"
+          $manifestContent += "InstallerSha256: $MSI_SHA256`n"
+          $manifestContent += "InstallerSwitches:`n"
+          $manifestContent += "  Silent: `"/quiet`"`n"
+          $manifestContent += "  SilentWithProgress: `"/quiet /norestart`"`n"
+          $manifestContent += "InstallModes:`n"
+          $manifestContent += "  - silent`n"
+          $manifestContent += "  - silentWithProgress`n"
+          $manifestContent += "Scope: machine`n"
+          
+          Set-Content -Path $MANIFEST_PATH -Value $manifestContent -Encoding UTF8
 
       - name: Generate version.yaml
         run: |
@@ -227,14 +227,14 @@ jobs:
           
           $MANIFEST_PATH = "manifests\t\$PRODUCT_NAME\$VERSION\version.yaml"
           
-          @"
-          # Created with GitHub Actions
-          PackageIdentifier: $PACKAGE_ID
-          Version: $VERSION
-          DefaultLocale: en-US
-          ManifestType: version
-          ManifestVersion: 1.4.0
-"@ | Out-File -FilePath $MANIFEST_PATH -Encoding UTF8
+          $manifestContent = "# Created with GitHub Actions`n"
+          $manifestContent += "PackageIdentifier: $PACKAGE_ID`n"
+          $manifestContent += "Version: $VERSION`n"
+          $manifestContent += "DefaultLocale: en-US`n"
+          $manifestContent += "ManifestType: version`n"
+          $manifestContent += "ManifestVersion: 1.4.0`n"
+          
+          Set-Content -Path $MANIFEST_PATH -Value $manifestContent -Encoding UTF8
 
       - name: Create winget manifest archive
         run: |
