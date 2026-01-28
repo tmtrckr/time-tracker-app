@@ -7,10 +7,18 @@ name: Generate Package Manager Manifests
 # - Manual: workflow_dispatch with optional version and create_prs flag
 # - Automatic: release event (published) - automatically creates PRs
 #
+# Prerequisites for PR creation:
+# 1. Create forks of the target repositories:
+#    - Fork microsoft/winget-pkgs: https://github.com/microsoft/winget-pkgs/fork
+#    - Fork homebrew/homebrew-cask: https://github.com/homebrew/homebrew-cask/fork
+# 2. Create a Personal Access Token (PAT) with 'repo' scope
+# 3. Add PAT as secret 'PACKAGE_MANAGER_PAT' in repository settings
+#
 # Usage:
 # - Manual run: Go to Actions -> Generate Package Manager Manifests -> Run workflow
 #   - Set version (optional): e.g., v0.2.3 or leave empty for latest
 #   - Set create_prs: true to automatically create PRs in WinGet and Homebrew repos
+#   - Set fork_owner (optional): GitHub username who owns the forks (auto-detected from PAT)
 # - Automatic: Triggers automatically when a release is published
 
 on:
@@ -571,12 +579,14 @@ jobs:
 
       - name: Determine fork repository
         id: winget_fork
+        env:
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_MANAGER_PAT || secrets.GITHUB_TOKEN }}
         run: |
           if [ -n "${{ github.event.inputs.fork_owner }}" ]; then
             FORK_OWNER="${{ github.event.inputs.fork_owner }}"
           elif [ -n "${{ secrets.PACKAGE_MANAGER_PAT }}" ]; then
             # Get username from PAT token
-            USER_INFO=$(curl -s -H "Authorization: token ${{ secrets.PACKAGE_MANAGER_PAT }}" \
+            USER_INFO=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
               -H "Accept: application/vnd.github.v3+json" \
               "https://api.github.com/user")
             FORK_OWNER=$(echo "$USER_INFO" | jq -r '.login')
@@ -585,6 +595,19 @@ jobs:
           fi
           echo "fork_owner=$FORK_OWNER" >> $GITHUB_OUTPUT
           echo "Using fork owner: $FORK_OWNER"
+          
+          # Check if fork exists
+          FORK_CHECK=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/$FORK_OWNER/winget-pkgs")
+          
+          if [ "$FORK_CHECK" != "200" ]; then
+            echo "::error::Fork repository $FORK_OWNER/winget-pkgs does not exist!"
+            echo "::error::Please create a fork of microsoft/winget-pkgs at: https://github.com/microsoft/winget-pkgs/fork"
+            echo "::error::Or specify a different fork_owner in workflow inputs"
+            exit 1
+          fi
+          echo "✅ Fork repository $FORK_OWNER/winget-pkgs exists"
 
       - name: Checkout winget-pkgs repository
         uses: actions/checkout@v4
@@ -753,12 +776,14 @@ jobs:
 
       - name: Determine fork repository
         id: homebrew_fork
+        env:
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_MANAGER_PAT || secrets.GITHUB_TOKEN }}
         run: |
           if [ -n "${{ github.event.inputs.fork_owner }}" ]; then
             FORK_OWNER="${{ github.event.inputs.fork_owner }}"
           elif [ -n "${{ secrets.PACKAGE_MANAGER_PAT }}" ]; then
             # Get username from PAT token
-            USER_INFO=$(curl -s -H "Authorization: token ${{ secrets.PACKAGE_MANAGER_PAT }}" \
+            USER_INFO=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
               -H "Accept: application/vnd.github.v3+json" \
               "https://api.github.com/user")
             FORK_OWNER=$(echo "$USER_INFO" | jq -r '.login')
@@ -767,6 +792,19 @@ jobs:
           fi
           echo "fork_owner=$FORK_OWNER" >> $GITHUB_OUTPUT
           echo "Using fork owner: $FORK_OWNER"
+          
+          # Check if fork exists
+          FORK_CHECK=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/$FORK_OWNER/homebrew-cask")
+          
+          if [ "$FORK_CHECK" != "200" ]; then
+            echo "::error::Fork repository $FORK_OWNER/homebrew-cask does not exist!"
+            echo "::error::Please create a fork of homebrew/homebrew-cask at: https://github.com/homebrew/homebrew-cask/fork"
+            echo "::error::Or specify a different fork_owner in workflow inputs"
+            exit 1
+          fi
+          echo "✅ Fork repository $FORK_OWNER/homebrew-cask exists"
 
       - name: Checkout homebrew-cask repository
         uses: actions/checkout@v4
