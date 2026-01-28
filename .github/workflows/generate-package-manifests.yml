@@ -609,6 +609,19 @@ jobs:
           fi
           echo "✅ Fork repository $FORK_OWNER/winget-pkgs exists"
 
+      - name: Get default branch
+        id: get_default_branch_winget
+        env:
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_MANAGER_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          FORK_OWNER="${{ steps.winget_fork.outputs.fork_owner }}"
+          REPO_INFO=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/$FORK_OWNER/winget-pkgs")
+          DEFAULT_BRANCH=$(echo "$REPO_INFO" | jq -r '.default_branch // "main"')
+          echo "default_branch=$DEFAULT_BRANCH" >> $GITHUB_OUTPUT
+          echo "Using default branch: $DEFAULT_BRANCH"
+
       - name: Checkout winget-pkgs repository
         uses: actions/checkout@v4
         with:
@@ -617,7 +630,7 @@ jobs:
           path: winget-pkgs
           fetch-depth: 1
           persist-credentials: true
-          ref: main
+          ref: ${{ steps.get_default_branch_winget.outputs.default_branch }}
 
       - name: Setup Git
         run: |
@@ -714,17 +727,18 @@ jobs:
           # Determine fork owner for PR head
           FORK_OWNER="${{ steps.winget_fork.outputs.fork_owner }}"
           HEAD_BRANCH="$FORK_OWNER:$BRANCH"
+          BASE_BRANCH="${{ steps.get_default_branch_winget.outputs.default_branch }}"
           
           echo "Creating PR with:"
           echo "  Head: $HEAD_BRANCH"
-          echo "  Base: main"
+          echo "  Base: $BASE_BRANCH"
           echo "  Title: Add TimeTracker version $VERSION"
           
           # Create PR payload (without labels - they require special permissions)
           PR_PAYLOAD=$(jq -n \
             --arg title "Add TimeTracker version $VERSION" \
             --arg head "$HEAD_BRANCH" \
-            --arg base "main" \
+            --arg base "$BASE_BRANCH" \
             --arg body "$PR_BODY" \
             '{title: $title, head: $head, base: $base, body: $body}')
           
@@ -762,7 +776,8 @@ jobs:
               echo "::info::PR already exists: $EXISTING_PR"
             else
               echo "::warning::Branch was created: $BRANCH"
-              echo "::warning::You can manually create PR at: https://github.com/microsoft/winget-pkgs/compare/main...$HEAD_BRANCH"
+              BASE_BRANCH="${{ steps.get_default_branch_winget.outputs.default_branch }}"
+              echo "::warning::You can manually create PR at: https://github.com/microsoft/winget-pkgs/compare/$BASE_BRANCH...$HEAD_BRANCH"
             fi
           else
             echo "::error::Failed to create PR. HTTP $HTTP_CODE"
@@ -833,6 +848,19 @@ jobs:
           fi
           echo "✅ Fork repository $FORK_OWNER/homebrew-cask exists"
 
+      - name: Get default branch
+        id: get_default_branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_MANAGER_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          FORK_OWNER="${{ steps.homebrew_fork.outputs.fork_owner }}"
+          REPO_INFO=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/$FORK_OWNER/homebrew-cask")
+          DEFAULT_BRANCH=$(echo "$REPO_INFO" | jq -r '.default_branch // "master"')
+          echo "default_branch=$DEFAULT_BRANCH" >> $GITHUB_OUTPUT
+          echo "Using default branch: $DEFAULT_BRANCH"
+
       - name: Checkout homebrew-cask repository
         uses: actions/checkout@v4
         with:
@@ -841,7 +869,7 @@ jobs:
           path: homebrew-cask-repo
           fetch-depth: 1
           persist-credentials: true
-          ref: master
+          ref: ${{ steps.get_default_branch.outputs.default_branch }}
 
       - name: Setup Git
         run: |
@@ -947,17 +975,18 @@ jobs:
           # Determine fork owner for PR head
           FORK_OWNER="${{ steps.homebrew_fork.outputs.fork_owner }}"
           HEAD_BRANCH="$FORK_OWNER:$BRANCH"
+          BASE_BRANCH="${{ steps.get_default_branch.outputs.default_branch }}"
           
           echo "Creating PR with:"
           echo "  Head: $HEAD_BRANCH"
-          echo "  Base: master"
+          echo "  Base: $BASE_BRANCH"
           echo "  Title: $COMMIT_MSG"
           
           # Create PR payload (without labels - they require special permissions)
           PR_PAYLOAD=$(jq -n \
             --arg title "$COMMIT_MSG" \
             --arg head "$HEAD_BRANCH" \
-            --arg base "master" \
+            --arg base "$BASE_BRANCH" \
             --arg body "$PR_BODY" \
             '{title: $title, head: $head, base: $base, body: $body}')
           
@@ -995,7 +1024,8 @@ jobs:
               echo "::info::PR already exists: $EXISTING_PR"
             else
               echo "::warning::Branch was created: $BRANCH"
-              echo "::warning::You can manually create PR at: https://github.com/homebrew/homebrew-cask/compare/master...$HEAD_BRANCH"
+              BASE_BRANCH="${{ steps.get_default_branch.outputs.default_branch }}"
+              echo "::warning::You can manually create PR at: https://github.com/homebrew/homebrew-cask/compare/$BASE_BRANCH...$HEAD_BRANCH"
             fi
           else
             echo "::error::Failed to create PR. HTTP $HTTP_CODE"
