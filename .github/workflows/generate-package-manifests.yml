@@ -137,20 +137,22 @@ jobs:
       - name: Get app metadata
         id: metadata
         run: |
-          # Read from tauri.conf.json
-          PRODUCT_NAME=$(node -p "require('./backend/tauri.conf.json').package.productName")
-          DESCRIPTION=$(node -p "require('./backend/tauri.conf.json').tauri.bundle.longDescription")
-          SHORT_DESC=$(node -p "require('./backend/tauri.conf.json').tauri.bundle.shortDescription")
+          # Read from tauri.conf.json using PowerShell
+          $config = Get-Content -Path "backend\tauri.conf.json" -Raw | ConvertFrom-Json
           
-          echo "product_name=$PRODUCT_NAME" >> $GITHUB_OUTPUT
-          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
-          echo "short_description=$SHORT_DESC" >> $GITHUB_OUTPUT
+          $PRODUCT_NAME = $config.package.productName
+          $DESCRIPTION = $config.tauri.bundle.longDescription
+          $SHORT_DESC = $config.tauri.bundle.shortDescription
+          
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "product_name=$PRODUCT_NAME"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "description=$DESCRIPTION"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "short_description=$SHORT_DESC"
           
           # Publisher name (first letter of product name for manifest path)
-          PUBLISHER="TimeTracker"
-          PACKAGE_ID="TimeTracker.TimeTracker"
-          echo "publisher=$PUBLISHER" >> $GITHUB_OUTPUT
-          echo "package_id=$PACKAGE_ID" >> $GITHUB_OUTPUT
+          $PUBLISHER = "TimeTracker"
+          $PACKAGE_ID = "TimeTracker.TimeTracker"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "publisher=$PUBLISHER"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "package_id=$PACKAGE_ID"
 
       - name: Create manifest directory structure
         run: |
