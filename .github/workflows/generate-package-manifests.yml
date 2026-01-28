@@ -617,6 +617,7 @@ jobs:
           path: winget-pkgs
           fetch-depth: 1
           persist-credentials: true
+          ref: main
 
       - name: Setup Git
         run: |
@@ -714,32 +715,58 @@ jobs:
           FORK_OWNER="${{ steps.winget_fork.outputs.fork_owner }}"
           HEAD_BRANCH="$FORK_OWNER:$BRANCH"
           
+          echo "Creating PR with:"
+          echo "  Head: $HEAD_BRANCH"
+          echo "  Base: main"
+          echo "  Title: Add TimeTracker version $VERSION"
+          
+          # Create PR payload (without labels - they require special permissions)
+          PR_PAYLOAD=$(jq -n \
+            --arg title "Add TimeTracker version $VERSION" \
+            --arg head "$HEAD_BRANCH" \
+            --arg base "main" \
+            --arg body "$PR_BODY" \
+            '{title: $title, head: $head, base: $base, body: $body}')
+          
           # Create PR using GitHub API
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
+            -H "Content-Type: application/json" \
             https://api.github.com/repos/microsoft/winget-pkgs/pulls \
-            -d "{
-              \"title\": \"Add TimeTracker version $VERSION\",
-              \"head\": \"$HEAD_BRANCH\",
-              \"base\": \"main\",
-              \"body\": $(echo "$PR_BODY" | jq -Rs .),
-              \"labels\": [\"New-Package\"]
-            }")
+            -d "$PR_PAYLOAD")
           
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "Response HTTP code: $HTTP_CODE"
           
           if [ "$HTTP_CODE" -eq 201 ]; then
             PR_URL=$(echo "$BODY" | jq -r '.html_url')
             echo "✅ Pull Request created successfully: $PR_URL"
           elif [ "$HTTP_CODE" -eq 422 ]; then
-            ERROR_MSG=$(echo "$BODY" | jq -r '.errors[0].message // .message // "Unknown error"')
-            echo "::warning::PR may already exist or validation failed: $ERROR_MSG"
-            echo "::warning::Branch was created: $BRANCH"
-            echo "::warning::You can manually create PR at: https://github.com/microsoft/winget-pkgs/compare/main...$FORK_OWNER:$BRANCH"
+            echo "::warning::PR creation failed with validation error"
+            echo "Response body:"
+            echo "$BODY" | jq '.' || echo "$BODY"
+            
+            # Try to extract specific error messages
+            ERRORS=$(echo "$BODY" | jq -r '.errors[]?.message // .message // "Unknown validation error"' 2>/dev/null || echo "Unknown error")
+            echo "::warning::Error details: $ERRORS"
+            
+            # Check if PR already exists
+            EXISTING_PR=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/microsoft/winget-pkgs/pulls?head=$HEAD_BRANCH&state=open" | jq -r '.[0].html_url // empty')
+            
+            if [ -n "$EXISTING_PR" ]; then
+              echo "::info::PR already exists: $EXISTING_PR"
+            else
+              echo "::warning::Branch was created: $BRANCH"
+              echo "::warning::You can manually create PR at: https://github.com/microsoft/winget-pkgs/compare/main...$HEAD_BRANCH"
+            fi
           else
             echo "::error::Failed to create PR. HTTP $HTTP_CODE"
+            echo "Response body:"
             echo "$BODY" | jq '.' || echo "$BODY"
             exit 1
           fi
@@ -814,6 +841,7 @@ jobs:
           path: homebrew-cask-repo
           fetch-depth: 1
           persist-credentials: true
+          ref: master
 
       - name: Setup Git
         run: |
@@ -920,32 +948,58 @@ jobs:
           FORK_OWNER="${{ steps.homebrew_fork.outputs.fork_owner }}"
           HEAD_BRANCH="$FORK_OWNER:$BRANCH"
           
+          echo "Creating PR with:"
+          echo "  Head: $HEAD_BRANCH"
+          echo "  Base: master"
+          echo "  Title: $COMMIT_MSG"
+          
+          # Create PR payload (without labels - they require special permissions)
+          PR_PAYLOAD=$(jq -n \
+            --arg title "$COMMIT_MSG" \
+            --arg head "$HEAD_BRANCH" \
+            --arg base "master" \
+            --arg body "$PR_BODY" \
+            '{title: $title, head: $head, base: $base, body: $body}')
+          
           # Create PR using GitHub API
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
+            -H "Content-Type: application/json" \
             https://api.github.com/repos/homebrew/homebrew-cask/pulls \
-            -d "{
-              \"title\": \"$COMMIT_MSG\",
-              \"head\": \"$HEAD_BRANCH\",
-              \"base\": \"master\",
-              \"body\": $(echo "$PR_BODY" | jq -Rs .),
-              \"labels\": [\"new cask\"]
-            }")
+            -d "$PR_PAYLOAD")
           
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "Response HTTP code: $HTTP_CODE"
           
           if [ "$HTTP_CODE" -eq 201 ]; then
             PR_URL=$(echo "$BODY" | jq -r '.html_url')
             echo "✅ Pull Request created successfully: $PR_URL"
           elif [ "$HTTP_CODE" -eq 422 ]; then
-            ERROR_MSG=$(echo "$BODY" | jq -r '.errors[0].message // .message // "Unknown error"')
-            echo "::warning::PR may already exist or validation failed: $ERROR_MSG"
-            echo "::warning::Branch was created: $BRANCH"
-            echo "::warning::You can manually create PR at: https://github.com/homebrew/homebrew-cask/compare/master...$FORK_OWNER:$BRANCH"
+            echo "::warning::PR creation failed with validation error"
+            echo "Response body:"
+            echo "$BODY" | jq '.' || echo "$BODY"
+            
+            # Try to extract specific error messages
+            ERRORS=$(echo "$BODY" | jq -r '.errors[]?.message // .message // "Unknown validation error"' 2>/dev/null || echo "Unknown error")
+            echo "::warning::Error details: $ERRORS"
+            
+            # Check if PR already exists
+            EXISTING_PR=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/homebrew/homebrew-cask/pulls?head=$HEAD_BRANCH&state=open" | jq -r '.[0].html_url // empty')
+            
+            if [ -n "$EXISTING_PR" ]; then
+              echo "::info::PR already exists: $EXISTING_PR"
+            else
+              echo "::warning::Branch was created: $BRANCH"
+              echo "::warning::You can manually create PR at: https://github.com/homebrew/homebrew-cask/compare/master...$HEAD_BRANCH"
+            fi
           else
             echo "::error::Failed to create PR. HTTP $HTTP_CODE"
+            echo "Response body:"
             echo "$BODY" | jq '.' || echo "$BODY"
             exit 1
           fi
