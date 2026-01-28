@@ -270,13 +270,13 @@ jobs:
             librsvg2-dev
 
       - name: Update version in files before build
+        shell: bash
         run: |
           VERSION="${{ needs.prepare-release.outputs.version }}"
           
           # Use Node.js for all updates (cross-platform)
           node -e "
           const fs = require('fs');
-          const path = require('path');
           
           // Update package.json
           const packageJsonPath = 'package.json';
