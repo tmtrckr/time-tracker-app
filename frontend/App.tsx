@@ -54,7 +54,18 @@ function App() {
       try {
         // Listen for idle return events from Tauri backend
         unlistenIdleReturn = await listen<{ duration_minutes: number; started_at: number }>('idle-return', (event) => {
-          setIdleDuration(event.payload.duration_minutes);
+          const store = useStore.getState();
+          const settings = store.settings;
+          const idleDurationMinutes = event.payload.duration_minutes;
+          const idlePromptThresholdMinutes = settings.idle_prompt_threshold_minutes || 5;
+          
+          // Filter by prompt threshold: only show prompt for periods >= threshold
+          if (idleDurationMinutes < idlePromptThresholdMinutes) {
+            // Don't show prompt for periods shorter than threshold
+            return;
+          }
+          
+          setIdleDuration(idleDurationMinutes);
           setIdleStartedAt(event.payload.started_at);
           setShowIdlePrompt(true);
         });
@@ -249,6 +260,13 @@ function App() {
           durationMinutes={idleDuration}
           onSubmit={handleIdleSubmit}
           onSkip={handleIdleSkip}
+          onNavigateToSettings={() => {
+            const { setScrollToIdlePromptThreshold, setSettingsActiveTab } = useStore.getState();
+            setSettingsActiveTab('general');
+            setScrollToIdlePromptThreshold(true);
+            setCurrentView('settings');
+            setShowIdlePrompt(false);
+          }}
         />
       )}
 

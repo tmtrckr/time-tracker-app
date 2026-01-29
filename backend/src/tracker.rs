@@ -263,11 +263,9 @@ impl Tracker {
                     if let Some(start) = idle_start_time {
                         let idle_duration = (now - start) as u64;
                         
-                        // Only prompt if idle was longer than threshold
-                        let prompt_threshold_value = *prompt_threshold.lock().unwrap();
-                        if idle_duration >= prompt_threshold_value {
-                            on_idle_return(idle_duration / 60, start); // Convert to minutes, pass started_at
-                        }
+                        // Always send idle return event, let frontend decide whether to show prompt
+                        // Frontend will filter based on prompt_threshold and user preferences
+                        on_idle_return(idle_duration / 60, start); // Convert to minutes, pass started_at
                     }
                     
                     idle_start_time = None;

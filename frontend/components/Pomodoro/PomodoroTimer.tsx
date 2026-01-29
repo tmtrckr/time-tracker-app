@@ -2,15 +2,18 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePomodoro } from '../../hooks/usePomodoro';
 import { useProjects } from '../../hooks/useProjects';
 import { useTasks } from '../../hooks/useTasks';
+import { useStore } from '../../store';
+import store from '../../store';
 import { formatTimerTime } from '../../utils/format';
 import { showSuccess, handleApiError } from '../../utils/toast';
 import Button from '../Common/Button';
 import Card from '../Common/Card';
 import PomodoroTransitionModal from './PomodoroTransitionModal';
-import { Play, Pause, Square, Coffee, Briefcase, X } from 'lucide-react';
+import { Play, Pause, Square, Coffee, Briefcase, RotateCcw } from 'lucide-react';
 
 const PomodoroTimer: React.FC = () => {
-  const { status, completedSessionType, suggestedNextType, getNextBreakType, startPomodoro, stopPomodoro, pausePomodoro, resumePomodoro, startNextSession, clearCompletedSessionType, clearSuggestedNextType } = usePomodoro();
+  const { status, completedSessionType, suggestedNextType, getNextBreakType, startPomodoro, stopPomodoro, pausePomodoro, resumePomodoro, startNextSession, clearCompletedSessionType, clearSuggestedNextType, consecutiveWorkCount, consecutiveBreakCount, resetConsecutiveSessions } = usePomodoro();
+  const { settings } = useStore();
   const { projects } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState<number | undefined>(undefined);
   const [selectedTaskId, setSelectedTaskId] = useState<number | undefined>(undefined);
@@ -50,8 +53,12 @@ const PomodoroTimer: React.FC = () => {
     },
   };
 
-  // Use status.pomodoro_type when session is running, otherwise use pomodoroType for selection
-  const activePomodoroType = status.is_running ? status.pomodoro_type : pomodoroType;
+  // Use status.pomodoro_type when session is running
+  // When modal is showing (completedSessionType exists), use completed session type for colors
+  // Otherwise use pomodoroType for selection
+  const activePomodoroType = status.is_running 
+    ? status.pomodoro_type 
+    : (completedSessionType || pomodoroType);
   const currentColors = colors[activePomodoroType as 'work' | 'break'] || colors.work;
 
   // TODO: Проверить автопереход между сессиями Work и Break
@@ -81,10 +88,24 @@ const PomodoroTimer: React.FC = () => {
   // TODO 8: Проверить race conditions: может ли модальное окно закрыться до того, как сработает автоподтверждение
   // Handle completed session and show modal (auto-confirm is handled by the modal itself)
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7250/ingest/88d94c84-1935-401d-8623-faad62dde354',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PomodoroTimer.tsx:89',message:'useEffect triggered',data:{completedSessionType,showTransitionModal},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+    // #endregion
     if (completedSessionType === 'work') {
+      // #region agent log
+      const { consecutiveWorkCount } = store.getState();
+      const threshold = settings.pomodoro_sessions_until_long_break ?? 4;
+      fetch('http://127.0.0.1:7250/ingest/88d94c84-1935-401d-8623-faad62dde354',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PomodoroTimer.tsx:91',message:'Work session completed - before getNextBreakType',data:{consecutiveWorkCount,threshold},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
       const breakType = getNextBreakType();
+      // #region agent log
+      fetch('http://127.0.0.1:7250/ingest/88d94c84-1935-401d-8623-faad62dde354',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PomodoroTimer.tsx:93',message:'Work session completed - after getNextBreakType',data:{breakType},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
       setNextSessionType('break');
       setNextBreakType(breakType);
+      // #region agent log
+      fetch('http://127.0.0.1:7250/ingest/88d94c84-1935-401d-8623-faad62dde354',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PomodoroTimer.tsx:97',message:'Setting showTransitionModal to true',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
       setShowTransitionModal(true);
       isConfirmingRef.current = false; // Reset flag when showing new modal
     } else if (completedSessionType === 'break') {
@@ -149,6 +170,33 @@ const PomodoroTimer: React.FC = () => {
     // The status is already reset by the completion handler
   };
 
+  // Reset both suggested type and consecutive counters
+  const handleResetAll = () => {
+    clearSuggestedNextType();
+    resetConsecutiveSessions();
+  };
+
+  // Get break type info for display
+  const getBreakTypeInfo = () => {
+    if (suggestedNextType !== 'break') return null;
+    const threshold = settings.pomodoro_sessions_until_long_break ?? 4;
+    // Long break should trigger after EVERY Nth session (2nd, 4th, 6th, etc.)
+    const isLong = consecutiveWorkCount > 0 && consecutiveWorkCount % threshold === 0;
+    
+    if (isLong) {
+      return {
+        type: 'Long',
+        reason: `after ${consecutiveWorkCount} work session${consecutiveWorkCount !== 1 ? 's' : ''}`,
+      };
+    } else {
+      const remaining = threshold - consecutiveWorkCount;
+      return {
+        type: 'Short',
+        reason: remaining > 1 ? `${remaining} more work session${remaining !== 1 ? 's' : ''} until long break` : '1 more work session until long break',
+      };
+    }
+  };
+
   return (
     <>
       <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
@@ -159,44 +207,6 @@ const PomodoroTimer: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Project & Task
               </h3>
-              
-              {/* Suggested Type Indicator */}
-              {!status.is_running && suggestedNextType !== null && (
-                <div className="mb-4">
-                  <div className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg border-2 ${
-                    suggestedNextType === 'work'
-                      ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'
-                      : 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700'
-                  }`}>
-                    <div className="flex items-center gap-2">
-                      {suggestedNextType === 'work' ? (
-                        <Briefcase className={`w-4 h-4 ${suggestedNextType === 'work' ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`} />
-                      ) : (
-                        <Coffee className={`w-4 h-4 ${suggestedNextType === 'break' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`} />
-                      )}
-                      <span className={`text-xs font-medium ${
-                        suggestedNextType === 'work'
-                          ? 'text-red-700 dark:text-red-300'
-                          : 'text-green-700 dark:text-green-300'
-                      }`}>
-                        {suggestedNextType === 'work' ? 'Work' : 'Break'}
-                      </span>
-                    </div>
-                    <button
-                      onClick={clearSuggestedNextType}
-                      className={`p-1 rounded hover:bg-opacity-20 transition-colors ${
-                        suggestedNextType === 'work'
-                          ? 'text-red-600 dark:text-red-400 hover:bg-red-600'
-                          : 'text-green-600 dark:text-green-400 hover:bg-green-600'
-                      }`}
-                      title="Reset context"
-                      aria-label="Reset context"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              )}
 
               {/* Project/Task Selectors */}
               {!status.is_running && (
@@ -284,6 +294,82 @@ const PomodoroTimer: React.FC = () => {
         <div className="flex-1">
           <Card>
             <div className="flex flex-col items-center p-8">
+              {/* Suggested Type Indicator */}
+              {(() => {
+                // #region agent log
+                fetch('http://127.0.0.1:7250/ingest/88d94c84-1935-401d-8623-faad62dde354',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PomodoroTimer.tsx:298',message:'Checking suggestedNextType display',data:{is_running:status.is_running,suggestedNextType},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'L'})}).catch(()=>{});
+                // #endregion
+                return null;
+              })()}
+              {!status.is_running && suggestedNextType !== null && (
+                <div className="w-full mb-4 flex justify-center">
+                  <div className={`flex flex-col items-center gap-1 px-4 py-3 rounded-lg border-2 ${
+                    suggestedNextType === 'work'
+                      ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'
+                      : 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {suggestedNextType === 'work' ? (
+                        <Briefcase className="w-4 h-4 text-red-600 dark:text-red-400" />
+                      ) : (
+                        <Coffee className="w-4 h-4 text-green-600 dark:text-green-400" />
+                      )}
+                      <span className={`text-sm font-semibold ${
+                        suggestedNextType === 'work'
+                          ? 'text-red-700 dark:text-red-300'
+                          : 'text-green-700 dark:text-green-300'
+                      }`}>
+                        Next: {suggestedNextType === 'work' ? 'Work Session' : (() => {
+                          const breakInfo = getBreakTypeInfo();
+                          return `Break (${breakInfo?.type || 'Short'})`;
+                        })()}
+                      </span>
+                    </div>
+                    {suggestedNextType === 'break' && (() => {
+                      const breakInfo = getBreakTypeInfo();
+                      return breakInfo && (
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          {breakInfo.reason}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* Reset Button */}
+              {(suggestedNextType !== null || consecutiveWorkCount > 0 || consecutiveBreakCount > 0) && (
+                <div className="mb-4">
+                  <button
+                    onClick={handleResetAll}
+                    className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-xs"
+                    title="Reset suggested session and counters"
+                    aria-label="Reset suggested session and counters"
+                  >
+                    <RotateCcw className="w-3 h-3 inline mr-1" />
+                    Reset
+                  </button>
+                </div>
+              )}
+
+              {/* Consecutive Sessions Counter */}
+              <div className="mb-6 flex flex-col items-center gap-2">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-4 h-4 text-red-600 dark:text-red-400" />
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Work: <span className="font-semibold text-gray-900 dark:text-white">{consecutiveWorkCount}</span>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Coffee className="w-4 h-4 text-green-600 dark:text-green-400" />
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Break: <span className="font-semibold text-gray-900 dark:text-white">{consecutiveBreakCount}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               {/* Timer Display */}
               <div className="relative mb-8">
                 {/* Circular Progress */}

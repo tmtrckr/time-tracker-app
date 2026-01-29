@@ -22,7 +22,7 @@ interface SettingsProps {
 type SettingsTab = 'general' | 'categories' | 'rules' | 'projects' | 'tasks' | 'goals' | 'about';
 
 const Settings: React.FC<SettingsProps> = () => {
-  const { settings, setSettings, categories, pendingRuleData, settingsActiveTab, setPendingRuleData, setSettingsActiveTab } = useStore();
+  const { settings, setSettings, categories, pendingRuleData, settingsActiveTab, scrollToIdlePromptThreshold, setPendingRuleData, setSettingsActiveTab, setScrollToIdlePromptThreshold } = useStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [localSettings, setLocalSettings] = useState<SettingsType>(settings);
   const [isSaving, setIsSaving] = useState(false);
@@ -92,6 +92,32 @@ const Settings: React.FC<SettingsProps> = () => {
   useEffect(() => {
     setSettingsActiveTab(activeTab);
   }, [activeTab, setSettingsActiveTab]);
+
+  // Handle scroll to idle prompt threshold
+  useEffect(() => {
+    if (scrollToIdlePromptThreshold && activeTab === 'general') {
+      // Wait for DOM to be ready and tab to be active
+      const timer = setTimeout(() => {
+        const element = document.getElementById('idle-prompt-threshold');
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Highlight the input field briefly
+          const input = element.querySelector('input');
+          if (input) {
+            input.focus();
+            input.style.transition = 'box-shadow 0.3s ease';
+            input.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.3)';
+            setTimeout(() => {
+              input.style.boxShadow = '';
+            }, 2000);
+          }
+          // Reset the flag
+          setScrollToIdlePromptThreshold(false);
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [scrollToIdlePromptThreshold, activeTab, setScrollToIdlePromptThreshold]);
 
   // Handle pendingRuleData - prefill form for creating new rule
   useEffect(() => {
@@ -329,6 +355,24 @@ const Settings: React.FC<SettingsProps> = () => {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Polling Interval (seconds)
+            </label>
+            <input
+              type="number"
+              value={localSettings.pollingInterval}
+              onChange={(e) => handleSettingChange('pollingInterval', Number(e.target.value))}
+              min={1}
+              max={60}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg 
+                         bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              How often to check the active window
+            </p>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Idle Threshold (seconds)
             </label>
             <input
@@ -355,25 +399,7 @@ const Settings: React.FC<SettingsProps> = () => {
             </p>
           </div>
           
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Polling Interval (seconds)
-            </label>
-            <input
-              type="number"
-              value={localSettings.pollingInterval}
-              onChange={(e) => handleSettingChange('pollingInterval', Number(e.target.value))}
-              min={1}
-              max={60}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg 
-                         bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              How often to check the active window
-            </p>
-          </div>
-          
-          <div>
+          <div id="idle-prompt-threshold">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Idle Prompt Threshold (seconds)
             </label>

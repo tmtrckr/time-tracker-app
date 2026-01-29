@@ -3,19 +3,20 @@ import { useStore } from '../../store';
 import { formatDuration } from '../../utils/format';
 import Button from '../Common/Button';
 import { usePinnedCategories } from '../../hooks/useCategories';
+import { Settings } from 'lucide-react';
 
 interface IdlePromptProps {
   durationMinutes: number;
   onSubmit: (categoryId: number, comment?: string) => Promise<void>;
   onSkip: () => void;
+  onNavigateToSettings?: () => void;
 }
 
-const IdlePrompt: React.FC<IdlePromptProps> = ({ durationMinutes, onSubmit, onSkip }) => {
+const IdlePrompt: React.FC<IdlePromptProps> = ({ durationMinutes, onSubmit, onSkip, onNavigateToSettings }) => {
   const { settings } = useStore();
   const { data: pinnedCategories = [] } = usePinnedCategories();
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [description, setDescription] = useState('');
-  const [dontAskForShort, setDontAskForShort] = useState(false);
   
   const idleDuration = durationMinutes;
   
@@ -27,6 +28,13 @@ const IdlePrompt: React.FC<IdlePromptProps> = ({ durationMinutes, onSubmit, onSk
   
   const handleSkip = () => {
     onSkip();
+  };
+  
+  const handleSettingsClick = () => {
+    if (onNavigateToSettings) {
+      onNavigateToSettings();
+      onSkip(); // Close the popup when navigating to settings
+    }
   };
   
   return (
@@ -119,18 +127,24 @@ const IdlePrompt: React.FC<IdlePromptProps> = ({ durationMinutes, onSubmit, onSk
           </Button>
         </div>
         
-        {/* Don't ask for short idle */}
-        <div className="mt-4 flex items-center justify-center">
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={dontAskForShort}
-              onChange={(e) => setDontAskForShort(e.target.checked)}
-              className="rounded border-gray-300 dark:border-gray-600 text-primary-600 
-                         focus:ring-primary-500 dark:bg-gray-700"
-            />
-            Don't ask for &lt; {Math.floor((settings.idle_prompt_threshold_minutes || 5) * 60 / 60)} min
-          </label>
+        {/* Settings link */}
+        <div className="mt-5 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <button
+            onClick={handleSettingsClick}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg 
+                       text-sm font-medium text-gray-600 dark:text-gray-400 
+                       hover:text-primary-600 dark:hover:text-primary-400 
+                       hover:bg-gray-50 dark:hover:bg-gray-700/50 
+                       transition-all duration-200 group"
+          >
+            <Settings className="w-4 h-4 transition-transform group-hover:rotate-90" />
+            <span className="text-center">
+              Change when this popup appears
+              <span className="block text-xs text-gray-500 dark:text-gray-500 mt-0.5">
+                (Idle Prompt Threshold in Settings)
+              </span>
+            </span>
+          </button>
         </div>
       </div>
     </div>

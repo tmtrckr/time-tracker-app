@@ -4,11 +4,18 @@ import { api } from '../services/api';
 import { useStore } from '../store';
 import store from '../store';
 
-// Global ref to track if session has been restored (shared across all hook instances)
+// Global refs to track state (shared across all hook instances)
 const hasRestoredRef = { current: false };
+const globalIntervalRef: { current: number | null } = { current: null };
+const globalIsCompletingRef: { current: boolean } = { current: false };
+const globalCompletingSessionIdRef: { current: number | null } = { current: null };
+const globalCompletedSessionTypeRef: { current: 'work' | 'break' | null } = { current: null };
+const globalCompletedSessionTypeListeners: Set<() => void> = new Set();
+const globalSuggestedNextTypeRef: { current: 'work' | 'break' | null } = { current: null };
+const globalSuggestedNextTypeListeners: Set<() => void> = new Set();
 
 export const usePomodoro = () => {
-  const { settings, pomodoroWorkSessionsCount, incrementPomodoroWorkSessions, resetPomodoroWorkSessions, syncPomodoroCounterFromDB, pomodoroStatus, setPomodoroStatus } = useStore();
+  const { settings, pomodoroWorkSessionsCount, incrementPomodoroWorkSessions, resetPomodoroWorkSessions, syncPomodoroCounterFromDB, pomodoroStatus, setPomodoroStatus, consecutiveWorkCount, consecutiveBreakCount, incrementConsecutiveWork, incrementConsecutiveBreak, resetConsecutiveSessions } = useStore();
   
   // Get durations from settings or use defaults
   const getWorkDuration = useCallback(() => {
@@ -28,7 +35,12 @@ export const usePomodoro = () => {
   
   const getNextBreakType = (): 'short' | 'long' => {
     const threshold = settings.pomodoro_sessions_until_long_break ?? 4;
-    return pomodoroWorkSessionsCount >= threshold ? 'long' : 'short';
+    // Use consecutiveWorkCount instead of pomodoroWorkSessionsCount
+    // pomodoroWorkSessionsCount is total count for today, not consecutive
+    // Long break should trigger after EVERY Nth session (2nd, 4th, 6th, etc.)
+    // Use modulo to check if current count is a multiple of threshold
+    const shouldBeLong = consecutiveWorkCount > 0 && consecutiveWorkCount % threshold === 0;
+    return shouldBeLong ? 'long' : 'short';
   };
   
   const defaultWorkDuration = getWorkDuration();
@@ -45,13 +57,55 @@ export const usePomodoro = () => {
     total_sec: defaultWorkDuration,
   };
   
-  const [completedSessionType, setCompletedSessionType] = useState<'work' | 'break' | null>(null);
+  // Use global ref for completedSessionType to share across all hook instances
+  const [completedSessionType, setCompletedSessionTypeState] = useState<'work' | 'break' | null>(globalCompletedSessionTypeRef.current);
+  
+  // Sync local state with global ref
+  useEffect(() => {
+    const listener = () => {
+      setCompletedSessionTypeState(globalCompletedSessionTypeRef.current);
+    };
+    globalCompletedSessionTypeListeners.add(listener);
+    return () => {
+      globalCompletedSessionTypeListeners.delete(listener);
+    };
+  }, []);
+  
+  const setCompletedSessionType = useCallback((value: 'work' | 'break' | null) => {
+    globalCompletedSessionTypeRef.current = value;
+    // Notify all listeners
+    globalCompletedSessionTypeListeners.forEach(listener => listener());
+  }, []);
   const [isLongBreak, setIsLongBreak] = useState(false); // Отслеживать, был ли текущий break длинным
-  const [suggestedNextType, setSuggestedNextType] = useState<'work' | 'break' | null>(null); // Контекст следующей ожидаемой сессии
-  const intervalRef = useRef<number | null>(null);
+  
+  // Use global ref for suggestedNextType to share across all hook instances
+  const [suggestedNextType, setSuggestedNextTypeState] = useState<'work' | 'break' | null>(globalSuggestedNextTypeRef.current);
+  
+  // Sync local state with global ref
+  useEffect(() => {
+    const listener = () => {
+      setSuggestedNextTypeState(globalSuggestedNextTypeRef.current);
+    };
+    globalSuggestedNextTypeListeners.add(listener);
+    return () => {
+      globalSuggestedNextTypeListeners.delete(listener);
+    };
+  }, []);
+  
+  const setSuggestedNextType = useCallback((value: 'work' | 'break' | null) => {
+    globalSuggestedNextTypeRef.current = value;
+    // Notify all listeners
+    globalSuggestedNextTypeListeners.forEach(listener => listener());
+  }, []);
   const isStoppingRef = useRef(false); // Track if we're in the process of stopping
+  const isLongBreakRef = useRef(false); // Use ref to track isLongBreak to avoid closure issues
+  // Use global refs shared across all hook instances to prevent multiple intervals
+  const intervalRef = globalIntervalRef;
+  const isCompletingRef = globalIsCompletingRef;
+  const completingSessionIdRef = globalCompletingSessionIdRef;
   
   // Sync counter from DB on mount
+  // Note: consecutive counters are not persisted and start at 0 on each app restart
   useEffect(() => {
     syncPomodoroCounterFromDB();
   }, [syncPomodoroCounterFromDB]);
@@ -84,7 +138,10 @@ export const usePomodoro = () => {
             // Try to determine if it's long break based on current counter
             // This is approximate but should work in most cases
             const threshold = settings.pomodoro_sessions_until_long_break ?? 4;
-            setIsLongBreak(pomodoroWorkSessionsCount >= threshold);
+            // Long break should trigger after EVERY Nth session (2nd, 4th, 6th, etc.)
+            const wasLongBreak = consecutiveWorkCount > 0 && consecutiveWorkCount % threshold === 0;
+            setIsLongBreak(wasLongBreak);
+            isLongBreakRef.current = wasLongBreak;
           }
           
           // Calculate elapsed time
@@ -95,19 +152,23 @@ export const usePomodoro = () => {
           // If session has expired, mark it as completed
           if (remaining === 0) {
             // Session expired - complete it
+            // Don't increment consecutive counters here - they should only track sessions completed in current app session
             try {
               await api.pomodoro.stopPomodoro(activeSession.id, duration, true);
-              // Trigger completion handler
+              // Trigger completion handler (but don't increment consecutive counters for expired sessions)
               if (activeSession.pomodoro_type === 'work') {
                 incrementPomodoroWorkSessions();
                 setSuggestedNextType('break');
               } else {
                 const threshold = settings.pomodoro_sessions_until_long_break ?? 4;
-                const wasLongBreak = pomodoroWorkSessionsCount >= threshold;
+                // Long break should trigger after EVERY Nth session (2nd, 4th, 6th, etc.)
+                const wasLongBreak = consecutiveWorkCount > 0 && consecutiveWorkCount % threshold === 0;
                 if (wasLongBreak) {
                   resetPomodoroWorkSessions();
+                  resetConsecutiveSessions();
                 }
                 setIsLongBreak(false);
+                isLongBreakRef.current = false;
                 setSuggestedNextType('work');
               }
             } catch (error) {
@@ -162,43 +223,106 @@ export const usePomodoro = () => {
   }, [settings.pomodoro_work_duration_seconds, settings.pomodoro_work_duration_minutes, getWorkDuration]);
 
   const handleSessionCompletion = useCallback(async (currentStatus: PomodoroStatus) => {
-    // Save session to DB as completed FIRST, before updating state
-    if (currentStatus.session_id) {
-      try {
-        // Save session to DB as completed with full duration
-        await api.pomodoro.stopPomodoro(currentStatus.session_id, currentStatus.total_sec, true);
-      } catch (error) {
-        // Continue with transition even if DB save fails
-      }
+    // Prevent multiple simultaneous calls - use session_id to track which session we're completing
+    const sessionId = currentStatus.session_id;
+    
+    // Check if already completing a DIFFERENT session (shouldn't happen, but be safe)
+    // If completing the SAME session, we should proceed (timer may have set the flag)
+    if (isCompletingRef.current && completingSessionIdRef.current !== null && completingSessionIdRef.current !== sessionId) {
+      return;
     }
     
-    // Always trigger transition regardless of DB save success
-    if (currentStatus.pomodoro_type === 'work') {
-      // Increment counter
-      incrementPomodoroWorkSessions();
-      // Set suggested next type to break (for context after skip)
-      setSuggestedNextType('break');
-      // Set completed session type to trigger automatic transition
-      setCompletedSessionType('work');
-    } else if (currentStatus.pomodoro_type === 'break') {
-      // After break, check if we need to reset counter
-      // If we just finished a long break, reset the counter
-      if (isLongBreak) {
-        resetPomodoroWorkSessions();
-      }
-      setIsLongBreak(false); // Reset flag
-      // Set suggested next type to work (for context after skip)
-      setSuggestedNextType('work');
-      // Set completed session type to trigger automatic transition
-      setCompletedSessionType('break');
+    // Capture isLongBreak from ref IMMEDIATELY - BEFORE setting any flags
+    // This must happen before any state changes or async operations
+    const wasLongBreak = isLongBreakRef.current;
+    
+    // Ensure session ID and flag are set (timer may have already set them)
+    // If timer already set them for this session, that's fine - we'll proceed
+    if (completingSessionIdRef.current !== sessionId) {
+      completingSessionIdRef.current = sessionId;
     }
-  }, [incrementPomodoroWorkSessions, resetPomodoroWorkSessions, isLongBreak]);
+    if (!isCompletingRef.current) {
+      isCompletingRef.current = true;
+    }
+    
+    // Final verification: ensure we're still processing the correct session
+    if (completingSessionIdRef.current !== sessionId) {
+      // Another call changed the session ID - this shouldn't happen, but be safe
+      return;
+    }
+    
+    try {
+      // Save session to DB as completed FIRST, before updating state
+      if (currentStatus.session_id) {
+        try {
+          // Save session to DB as completed with full duration
+          await api.pomodoro.stopPomodoro(currentStatus.session_id, currentStatus.total_sec, true);
+        } catch (error) {
+          // Continue with transition even if DB save fails
+        }
+      }
+      
+      // Reset timer to initial state (work session with default duration)
+      const defaultWorkDuration = getWorkDuration();
+      setPomodoroStatus({
+        is_running: false,
+        is_active: false,
+        session_id: null,
+        pomodoro_type: 'work',
+        started_at: null,
+        duration_sec: defaultWorkDuration,
+        remaining_sec: defaultWorkDuration,
+        total_sec: defaultWorkDuration,
+      });
+      
+      // Always trigger transition regardless of DB save success
+      if (currentStatus.pomodoro_type === 'work') {
+        // Increment work sessions counter
+        incrementPomodoroWorkSessions();
+        // Increment consecutive work sessions counter
+        incrementConsecutiveWork();
+        // Set suggested next type to break (for context after skip)
+        setSuggestedNextType('break');
+        // Set completed session type to trigger automatic transition
+        setCompletedSessionType('work');
+      } else if (currentStatus.pomodoro_type === 'break') {
+        // After break, check if we need to reset counters
+        // If we just finished a long break, reset both counters (long break ends the cycle)
+        // Use wasLongBreak from ref (captured at start of function) instead of state
+        if (wasLongBreak) {
+          resetPomodoroWorkSessions();
+          resetConsecutiveSessions();
+        } else {
+          // Increment consecutive break sessions counter only for short breaks
+          incrementConsecutiveBreak();
+        }
+        // Reset flag AFTER processing (not before)
+        setIsLongBreak(false);
+        isLongBreakRef.current = false;
+        // Set suggested next type to work (for context after skip)
+        setSuggestedNextType('work');
+        // Set completed session type to trigger automatic transition
+        setCompletedSessionType('break');
+      }
+    } finally {
+      // Reset flag after a longer delay to prevent race conditions
+      setTimeout(() => {
+        isCompletingRef.current = false;
+        completingSessionIdRef.current = null;
+      }, 500);
+    }
+  }, [incrementPomodoroWorkSessions, resetPomodoroWorkSessions, getWorkDuration, setPomodoroStatus, incrementConsecutiveWork, incrementConsecutiveBreak, resetConsecutiveSessions]);
 
   // TODO: Проверить автопереход между сессиями Work и Break
   // TODO 1: Проверить, что таймер правильно определяет завершение сессии (remaining_sec <= 0)
   // TODO 2: Проверить, что handleSessionCompletion вызывается при завершении сессии
   useEffect(() => {
     if (status.is_active && status.remaining_sec >= 0 && pomodoroStatus) {
+      // Don't create interval if one already exists
+      if (intervalRef.current) {
+        return;
+      }
+      
       intervalRef.current = window.setInterval(() => {
         const currentStatus = store.getState().pomodoroStatus;
         if (!currentStatus) return;
@@ -209,16 +333,39 @@ export const usePomodoro = () => {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
           }
+          // Check if we're already completing this session
+          const sessionId = currentStatus.session_id;
+          
+          // IMMEDIATE check: if already processing this exact session, skip
+          if (completingSessionIdRef.current === sessionId && isCompletingRef.current) {
+            // Already processing this session - skip
+            return;
+          }
+          
+          // Try to claim this session: set session ID FIRST (this is our "claim")
+          const previousSessionId = completingSessionIdRef.current;
+          completingSessionIdRef.current = sessionId;
+          
+          // CRITICAL: Double-check immediately - if session ID changed, we lost the race
+          if (completingSessionIdRef.current !== sessionId) {
+            // Another call claimed this session between our read and write - we lost the race
+            return;
+          }
+          
+          // We successfully claimed the session - set the flag
+          isCompletingRef.current = true;
+          
+          // Final check: verify we still own the claim (defense against race conditions)
+          if (completingSessionIdRef.current !== sessionId) {
+            // Lost the race - reset our claim
+            completingSessionIdRef.current = previousSessionId;
+            isCompletingRef.current = false;
+            return;
+          }
+          
           // Timer finished naturally - handle completion
-          // TODO: Добавить логирование здесь для отладки автоперехода
+          // handleSessionCompletion will reset the timer to initial state
           handleSessionCompletion(currentStatus);
-          // Update status to stop the timer
-          setPomodoroStatus({
-            ...currentStatus,
-            is_active: false,
-            is_running: false,
-            remaining_sec: 0,
-          });
         } else {
           setPomodoroStatus({
             ...currentStatus,
@@ -239,7 +386,7 @@ export const usePomodoro = () => {
         intervalRef.current = null;
       }
     };
-  }, [status.is_active, status.remaining_sec, pomodoroStatus, handleSessionCompletion, setPomodoroStatus]);
+  }, [status.is_active, pomodoroStatus, handleSessionCompletion, setPomodoroStatus]);
 
   const startPomodoro = async (type: 'work' | 'break' = 'work', projectId?: number, taskId?: number) => {
     try {
@@ -250,10 +397,12 @@ export const usePomodoro = () => {
       } else {
         const breakType = getNextBreakType();
         duration = breakType === 'long' ? getLongBreakDuration() : getShortBreakDuration();
-        setIsLongBreak(breakType === 'long');
+        const willBeLongBreak = breakType === 'long';
+        setIsLongBreak(willBeLongBreak);
+        isLongBreakRef.current = willBeLongBreak; // Update ref as well
       }
-      // Clear suggested next type when starting a session
-      setSuggestedNextType(null);
+      // Don't clear suggestedNextType when starting manually - it should persist
+      // It will be updated when the session completes
       setPomodoroStatus({
         is_running: true,
         is_active: true,
@@ -294,6 +443,7 @@ export const usePomodoro = () => {
         total_sec: defaultWorkDuration,
       });
       setIsLongBreak(false); // Reset flag when stopping
+      isLongBreakRef.current = false; // Reset ref as well
       // Always clear completedSessionType when manually stopping
       // This prevents showing modal if user stops timer manually (even if it reached 0)
       // Modal should only show when timer completes naturally via handleSessionCompletion
@@ -333,18 +483,21 @@ export const usePomodoro = () => {
   const startNextSession = async (type: 'work' | 'break', projectId?: number, taskId?: number) => {
     // Clear completed session type
     setCompletedSessionType(null);
-    // Clear suggested next type when starting next session
-    setSuggestedNextType(null);
+    // Don't clear suggestedNextType here - it should persist until the next session completes
+    // It will be updated when the next session completes
     
     // Determine break duration if needed
     let duration: number;
     if (type === 'work') {
       duration = getWorkDuration();
       setIsLongBreak(false);
+      isLongBreakRef.current = false; // Update ref as well
     } else {
       const breakType = getNextBreakType();
       duration = breakType === 'long' ? getLongBreakDuration() : getShortBreakDuration();
-      setIsLongBreak(breakType === 'long');
+      const willBeLongBreak = breakType === 'long';
+      setIsLongBreak(willBeLongBreak);
+      isLongBreakRef.current = willBeLongBreak; // Update ref as well
     }
     
     try {
@@ -366,11 +519,11 @@ export const usePomodoro = () => {
 
   const clearCompletedSessionType = useCallback(() => {
     setCompletedSessionType(null);
-  }, []);
+  }, [setCompletedSessionType]);
 
   const clearSuggestedNextType = useCallback(() => {
     setSuggestedNextType(null);
-  }, []);
+  }, [setSuggestedNextType]);
 
   return {
     status,
@@ -384,5 +537,8 @@ export const usePomodoro = () => {
     startNextSession,
     clearCompletedSessionType,
     clearSuggestedNextType,
+    consecutiveWorkCount,
+    consecutiveBreakCount,
+    resetConsecutiveSessions,
   };
 };

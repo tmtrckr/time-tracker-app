@@ -22,6 +22,8 @@ interface AppState {
   // Pomodoro counter
   pomodoroWorkSessionsCount: number;
   lastPomodoroCycleDate: string | null;
+  consecutiveWorkCount: number; // Count of consecutive work sessions
+  consecutiveBreakCount: number; // Count of consecutive break sessions
   
   // Pomodoro status (shared across all components)
   pomodoroStatus: PomodoroStatus | null;
@@ -29,6 +31,7 @@ interface AppState {
   // Settings navigation
   pendingRuleData: { rule_type: 'app_name' | 'window_title' | 'domain', pattern: string, category_id?: number } | null;
   settingsActiveTab: SettingsTab | null;
+  scrollToIdlePromptThreshold: boolean;
 
   // Actions
   setCurrentView: (view: AppState['currentView']) => void;
@@ -45,9 +48,13 @@ interface AppState {
   incrementPomodoroWorkSessions: () => void;
   resetPomodoroWorkSessions: () => void;
   syncPomodoroCounterFromDB: () => Promise<void>;
+  incrementConsecutiveWork: () => void;
+  incrementConsecutiveBreak: () => void;
+  resetConsecutiveSessions: () => void;
   setPomodoroStatus: (status: PomodoroStatus | null) => void;
   setPendingRuleData: (data: { rule_type: 'app_name' | 'window_title' | 'domain', pattern: string, category_id?: number } | null) => void;
   setSettingsActiveTab: (tab: SettingsTab | null) => void;
+  setScrollToIdlePromptThreshold: (scroll: boolean) => void;
 }
 
 const defaultSettings: Settings = {
@@ -102,6 +109,8 @@ const store = create<AppState>()(
       // Pomodoro counter
       pomodoroWorkSessionsCount: 0,
       lastPomodoroCycleDate: null,
+      consecutiveWorkCount: 0,
+      consecutiveBreakCount: 0,
       
       // Pomodoro status (not persisted - runtime only)
       pomodoroStatus: null,
@@ -222,6 +231,35 @@ const store = create<AppState>()(
           lastPomodoroCycleDate: new Date().toISOString().split('T')[0],
         }),
 
+      incrementConsecutiveWork: () =>
+        set((state) => {
+          const newCount = state.consecutiveWorkCount + 1;
+          console.log('[Store] incrementConsecutiveWork:', state.consecutiveWorkCount, '->', newCount);
+          // #region agent log
+          fetch('http://127.0.0.1:7250/ingest/88d94c84-1935-401d-8623-faad62dde354',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'store/index.ts:234',message:'incrementConsecutiveWork',data:{oldCount:state.consecutiveWorkCount,newCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
+          return {
+            consecutiveWorkCount: newCount,
+          };
+        }),
+
+      incrementConsecutiveBreak: () =>
+        set((state) => ({
+          consecutiveBreakCount: state.consecutiveBreakCount + 1,
+        })),
+
+      resetConsecutiveSessions: () =>
+        set((state) => {
+          console.log('[Store] resetConsecutiveSessions:', state.consecutiveWorkCount, state.consecutiveBreakCount, '-> 0, 0');
+          // #region agent log
+          fetch('http://127.0.0.1:7250/ingest/88d94c84-1935-401d-8623-faad62dde354',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'store/index.ts:248',message:'resetConsecutiveSessions called',data:{oldConsecutiveWorkCount:state.consecutiveWorkCount,oldConsecutiveBreakCount:state.consecutiveBreakCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+          // #endregion
+          return {
+            consecutiveWorkCount: 0,
+            consecutiveBreakCount: 0,
+          };
+        }),
+
       syncPomodoroCounterFromDB: async () => {
         try {
           const { api } = await import('../services/api');
@@ -229,11 +267,13 @@ const store = create<AppState>()(
           const today = new Date().toISOString().split('T')[0];
           
           set((state) => {
-            // Если дата последнего сброса != сегодня, сбросить счетчик
+            // Если дата последнего сброса != сегодня, сбросить счетчики
             if (state.lastPomodoroCycleDate !== today) {
               return {
                 pomodoroWorkSessionsCount: count,
                 lastPomodoroCycleDate: today,
+                consecutiveWorkCount: 0,
+                consecutiveBreakCount: 0,
               };
             }
             // Использовать значение из БД если оно отличается
@@ -251,6 +291,8 @@ const store = create<AppState>()(
       setPendingRuleData: (data) => set({ pendingRuleData: data }),
       
       setSettingsActiveTab: (tab) => set({ settingsActiveTab: tab }),
+      
+      setScrollToIdlePromptThreshold: (scroll) => set({ scrollToIdlePromptThreshold: scroll }),
     }),
     {
       name: 'timetracker-storage',
@@ -261,6 +303,9 @@ const store = create<AppState>()(
         selectedDateRange: state.selectedDateRange,
         pomodoroWorkSessionsCount: state.pomodoroWorkSessionsCount,
         lastPomodoroCycleDate: state.lastPomodoroCycleDate,
+        // Don't persist consecutive counters - they should reset on app restart
+        // consecutiveWorkCount: state.consecutiveWorkCount,
+        // consecutiveBreakCount: state.consecutiveBreakCount,
       }),
       onRehydrateStorage: () => (state) => {
         // Convert date strings back to Date objects after rehydration

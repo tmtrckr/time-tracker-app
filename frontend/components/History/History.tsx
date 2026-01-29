@@ -45,7 +45,7 @@ const History: React.FC<HistoryProps> = ({
   const scrollEndTimeRef = useRef<number>(0);
   const lastActiveDateUpdateRef = useRef<number>(0);
   const lastActiveDateRef = useRef<string | null>(null);
-  const activeDateUpdateTimeoutRef = useRef<number | null>(null);
+  const activeDateUpdateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Use hooks if props not provided
   const { data: hookActivities, isLoading: activitiesLoading } = useActivities();
