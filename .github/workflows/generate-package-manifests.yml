@@ -280,12 +280,13 @@ jobs:
           $LOCALE_FILENAME = "$PACKAGE_ID.locale.en-US.yaml"
           $MANIFEST_PATH = "manifests\t\$PUBLISHER\$PRODUCT_NAME\$VERSION\$LOCALE_FILENAME"
           
-          # Generate defaultLocale manifest according to multi-file schema v1.4.0
+          # Generate defaultLocale manifest according to multi-file schema v1.10.0
+          # Field order: PackageIdentifier, PackageVersion, PackageLocale, Publisher, PublisherUrl, 
+          # PublisherSupportUrl, Author, PackageName, PackageUrl, License, LicenseUrl, Copyright, 
+          # CopyrightUrl, ShortDescription, Description, Tags, Moniker, ManifestType, ManifestVersion
           $manifestContent = "# Created with GitHub Actions`n"
           $manifestContent += "PackageIdentifier: $PACKAGE_ID`n"
           $manifestContent += "PackageVersion: $VERSION`n"
-          $manifestContent += "ManifestType: defaultLocale`n"
-          $manifestContent += "ManifestVersion: 1.4.0`n"
           $manifestContent += "PackageLocale: en-US`n"
           $manifestContent += "Publisher: $PUBLISHER`n"
           $manifestContent += "PublisherUrl: https://github.com/${{ github.repository }}`n"
@@ -305,6 +306,8 @@ jobs:
           $manifestContent += "  - pomodoro`n"
           $manifestContent += "  - time-management`n"
           $manifestContent += "Moniker: timetracker`n"
+          $manifestContent += "ManifestType: defaultLocale`n"
+          $manifestContent += "ManifestVersion: 1.10.0`n"
           
           Set-Content -Path $MANIFEST_PATH -Value $manifestContent -Encoding UTF8
 
@@ -321,25 +324,23 @@ jobs:
           $INSTALLER_FILENAME = "$PACKAGE_ID.installer.yaml"
           $MANIFEST_PATH = "manifests\t\$PUBLISHER\$PRODUCT_NAME\$VERSION\$INSTALLER_FILENAME"
           
-          # Generate installer manifest according to multi-file schema v1.4.0
+          # Generate installer manifest according to multi-file schema v1.10.0
+          # Field order: PackageIdentifier, PackageVersion, Installers, ManifestType, ManifestVersion
+          # Note: MSI installers have default silent switches, so InstallerSwitches are omitted
           $manifestContent = "# Created with GitHub Actions`n"
           $manifestContent += "PackageIdentifier: $PACKAGE_ID`n"
           $manifestContent += "PackageVersion: $VERSION`n"
-          $manifestContent += "ManifestType: installer`n"
-          $manifestContent += "ManifestVersion: 1.4.0`n"
           $manifestContent += "Installers:`n"
-          $manifestContent += "  - InstallerIdentifier: $PACKAGE_ID`n"
-          $manifestContent += "    InstallerType: msi`n"
+          $manifestContent += "  - InstallerType: msi`n"
           $manifestContent += "    Architecture: x64`n"
           $manifestContent += "    InstallerUrl: $MSI_URL`n"
           $manifestContent += "    InstallerSha256: $MSI_SHA256`n"
-          $manifestContent += "    InstallerSwitches:`n"
-          $manifestContent += "      Silent: `"/quiet`"`n"
-          $manifestContent += "      SilentWithProgress: `"/quiet /norestart`"`n"
           $manifestContent += "    InstallModes:`n"
           $manifestContent += "      - silent`n"
           $manifestContent += "      - silentWithProgress`n"
           $manifestContent += "    Scope: machine`n"
+          $manifestContent += "ManifestType: installer`n"
+          $manifestContent += "ManifestVersion: 1.10.0`n"
           
           Set-Content -Path $MANIFEST_PATH -Value $manifestContent -Encoding UTF8
 
@@ -354,12 +355,13 @@ jobs:
           $VERSION_FILENAME = "$PACKAGE_ID.yaml"
           $MANIFEST_PATH = "manifests\t\$PUBLISHER\$PRODUCT_NAME\$VERSION\$VERSION_FILENAME"
           
+          # Generate version manifest according to multi-file schema v1.10.0
           $manifestContent = "# Created with GitHub Actions`n"
           $manifestContent += "PackageIdentifier: $PACKAGE_ID`n"
           $manifestContent += "PackageVersion: $VERSION`n"
           $manifestContent += "DefaultLocale: en-US`n"
           $manifestContent += "ManifestType: version`n"
-          $manifestContent += "ManifestVersion: 1.4.0`n"
+          $manifestContent += "ManifestVersion: 1.10.0`n"
           
           Set-Content -Path $MANIFEST_PATH -Value $manifestContent -Encoding UTF8
 
