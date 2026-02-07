@@ -128,13 +128,6 @@ export interface TimelineBlock {
   is_billable: boolean;
 }
 
-// Idle prompt types
-export interface IdleInfo {
-  started_at: number;
-  ended_at: number;
-  duration_minutes: number;
-}
-
 // Date range types
 export type DateRangePreset = 'today' | 'week' | 'month' | 'custom';
 

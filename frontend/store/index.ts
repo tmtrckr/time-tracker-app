@@ -5,9 +5,32 @@ import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth 
 
 type SettingsTab = 'general' | 'categories' | 'rules' | 'projects' | 'tasks' | 'goals' | 'about';
 
+export type View = 'dashboard' | 'history' | 'reports' | 'settings' | 'pomodoro';
+
+/** Shared helper: compute date range from preset (and optional custom range for preset 'custom'). */
+export function presetToDateRange(preset: DateRangePreset, now: Date, customRange?: DateRange): DateRange {
+  switch (preset) {
+    case 'today':
+      return { start: startOfDay(now), end: endOfDay(now) };
+    case 'week':
+      return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
+    case 'month':
+      return { start: startOfMonth(now), end: endOfMonth(now) };
+    case 'custom': {
+      if (!customRange) return { start: startOfDay(now), end: endOfDay(now) };
+      return {
+        start: customRange.start instanceof Date ? customRange.start : new Date(customRange.start),
+        end: customRange.end instanceof Date ? customRange.end : new Date(customRange.end),
+      };
+    }
+    default:
+      return { start: startOfDay(now), end: endOfDay(now) };
+  }
+}
+
 interface AppState {
   // UI State
-  currentView: 'dashboard' | 'history' | 'settings';
+  currentView: View;
   selectedDateRange: DateRange;
   dateRangePreset: DateRangePreset;
   isTrackingPaused: boolean;
@@ -34,7 +57,7 @@ interface AppState {
   scrollToIdlePromptThreshold: boolean;
 
   // Actions
-  setCurrentView: (view: AppState['currentView']) => void;
+  setCurrentView: (view: View) => void;
   setSelectedDateRange: (range: DateRange) => void;
   setDateRangePreset: (preset: DateRangePreset) => void;
   getDateRange: () => DateRange;
@@ -130,37 +153,7 @@ const store = create<AppState>()(
 
       setDateRangePreset: (preset) => {
         const now = new Date();
-        let range: DateRange;
-
-        switch (preset) {
-          case 'today':
-            range = {
-              start: startOfDay(now),
-              end: endOfDay(now),
-            };
-            break;
-          case 'week':
-            range = {
-              start: startOfWeek(now, { weekStartsOn: 1 }), // Monday
-              end: endOfWeek(now, { weekStartsOn: 1 }),
-            };
-            break;
-          case 'month':
-            range = {
-              start: startOfMonth(now),
-              end: endOfMonth(now),
-            };
-            break;
-          case 'custom':
-            range = get().selectedDateRange;
-            break;
-          default:
-            range = {
-              start: startOfDay(now),
-              end: endOfDay(now),
-            };
-        }
-
+        const range = presetToDateRange(preset, now, preset === 'custom' ? get().selectedDateRange : undefined);
         set({ 
           dateRangePreset: preset,
           selectedDateRange: range,
@@ -169,39 +162,11 @@ const store = create<AppState>()(
 
       getDateRange: () => {
         const state = get();
-        const preset = state.dateRangePreset;
-        const now = new Date();
-
-        switch (preset) {
-          case 'today':
-            return {
-              start: startOfDay(now),
-              end: endOfDay(now),
-            };
-          case 'week':
-            return {
-              start: startOfWeek(now, { weekStartsOn: 1 }),
-              end: endOfWeek(now, { weekStartsOn: 1 }),
-            };
-          case 'month':
-            return {
-              start: startOfMonth(now),
-              end: endOfMonth(now),
-            };
-          case 'custom': {
-            // Ensure dates are Date objects (they might be strings after localStorage deserialization)
-            const customRange = state.selectedDateRange;
-            return {
-              start: customRange.start instanceof Date ? customRange.start : new Date(customRange.start),
-              end: customRange.end instanceof Date ? customRange.end : new Date(customRange.end),
-            };
-          }
-          default:
-            return {
-              start: startOfDay(now),
-              end: endOfDay(now),
-            };
-        }
+        return presetToDateRange(
+          state.dateRangePreset,
+          new Date(),
+          state.dateRangePreset === 'custom' ? state.selectedDateRange : undefined
+        );
       },
 
       setIsTrackingPaused: (paused) => set({ isTrackingPaused: paused }),

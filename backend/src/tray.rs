@@ -77,7 +77,15 @@ pub fn handle_tray_event(app: &AppHandle, event: SystemTrayEvent) {
 fn handle_menu_click(app: &AppHandle, id: &str) {
     match id {
         "quit" => {
-            std::process::exit(0);
+            // Stop tracker before exit so last activity is flushed
+            if let Some(state) = app.try_state::<crate::commands::AppState>() {
+                if let Ok(guard) = state.tracker.lock() {
+                    if let Some(t) = guard.as_ref() {
+                        t.stop();
+                    }
+                }
+            }
+            app.exit(0);
         }
         "dashboard" => {
             if let Some(window) = app.get_window("main") {

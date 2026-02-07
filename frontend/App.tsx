@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useStore } from './store';
+import { useStore, type View } from './store';
 import { useSettings } from './hooks/useSettings';
 import { useActivities } from './hooks/useActivities';
 import { useCategories } from './hooks/useCategories';
@@ -14,7 +14,7 @@ import ManualEntryModal from './components/ManualEntry/ManualEntryModal';
 import { listen } from '@tauri-apps/api/event';
 import type { ManualEntry } from './types';
 
-type View = 'dashboard' | 'history' | 'reports' | 'settings' | 'pomodoro';
+const VALID_VIEWS: View[] = ['dashboard', 'history', 'reports', 'settings', 'pomodoro'];
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -77,9 +77,9 @@ function App() {
 
         // Listen for navigation events from tray
         unlistenNavigate = await listen<string>('navigate', (event) => {
-          const view = event.payload as View;
-          if (['dashboard', 'history', 'settings', 'pomodoro'].includes(view)) {
-            setCurrentView(view);
+          const view = event.payload;
+          if (VALID_VIEWS.includes(view as View)) {
+            setCurrentView(view as View);
           }
         });
 
@@ -192,22 +192,39 @@ function App() {
     startedAt: Date;
     endedAt: Date;
   }) => {
+    const { invoke } = await import('@tauri-apps/api/tauri');
+    const { showSuccess } = await import('./utils/toast');
+    const { handleApiError } = await import('./utils/toast');
+    const startedAtSec = Math.floor(entry.startedAt.getTime() / 1000);
+    const endedAtSec = Math.floor(entry.endedAt.getTime() / 1000);
     try {
-      const { invoke } = await import('@tauri-apps/api/tauri');
-      await invoke('add_manual_entry', {
-        description: entry.description,
-        categoryId: entry.categoryId,
-        startedAt: Math.floor(entry.startedAt.getTime() / 1000),
-        endedAt: Math.floor(entry.endedAt.getTime() / 1000),
-      });
-      const { showSuccess } = await import('./utils/toast');
-      showSuccess('Manual entry added');
+      if (editingEntry) {
+        await invoke('update_manual_entry', {
+          id: editingEntry.id,
+          description: entry.description,
+          category_id: entry.categoryId,
+          project: editingEntry.project ?? null,
+          started_at: startedAtSec,
+          ended_at: endedAtSec,
+          project_id: editingEntry.project_id ?? null,
+          task_id: editingEntry.task_id ?? null,
+        });
+        showSuccess('Manual entry updated');
+      } else {
+        await invoke('add_manual_entry', {
+          description: entry.description,
+          categoryId: entry.categoryId,
+          startedAt: startedAtSec,
+          endedAt: endedAtSec,
+        });
+        showSuccess('Manual entry added');
+      }
       refetchActivities();
+      setShowManualEntry(false);
+      setEditingEntry(null);
     } catch (error) {
-      const { handleApiError } = await import('./utils/toast');
-      handleApiError(error, 'Failed to add manual entry');
+      handleApiError(error, editingEntry ? 'Failed to update manual entry' : 'Failed to add manual entry');
     }
-    setShowManualEntry(false);
   };
 
   const isLoading = settingsLoading || activitiesLoading || categoriesLoading;

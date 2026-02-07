@@ -18,8 +18,7 @@ impl AutostartManager {
         }
     }
 
-    /// Enable autostart
-    pub fn enable(&self) -> Result<(), String> {
+    fn create_auto_launch(&self) -> Result<AutoLaunch, String> {
         let app_path_str = self.app_path.to_str().ok_or("Invalid app path")?;
         let args: &[&str] = &[];
         #[cfg(target_os = "macos")]
@@ -35,46 +34,27 @@ impl AutostartManager {
             app_path_str,
             args,
         );
-        autostart.enable().map_err(|e| format!("Failed to enable autostart: {}", e))
+        Ok(autostart)
+    }
+
+    /// Enable autostart
+    pub fn enable(&self) -> Result<(), String> {
+        self.create_auto_launch()?
+            .enable()
+            .map_err(|e| format!("Failed to enable autostart: {}", e))
     }
 
     /// Disable autostart
     pub fn disable(&self) -> Result<(), String> {
-        let app_path_str = self.app_path.to_str().ok_or("Invalid app path")?;
-        let args: &[&str] = &[];
-        #[cfg(target_os = "macos")]
-        let autostart = AutoLaunch::new(
-            &self.app_name,
-            app_path_str,
-            false, // use_launch_agent: false = use AppleScript (default)
-            args,
-        );
-        #[cfg(not(target_os = "macos"))]
-        let autostart = AutoLaunch::new(
-            &self.app_name,
-            app_path_str,
-            args,
-        );
-        autostart.disable().map_err(|e| format!("Failed to disable autostart: {}", e))
+        self.create_auto_launch()?
+            .disable()
+            .map_err(|e| format!("Failed to disable autostart: {}", e))
     }
 
     /// Check if autostart is enabled
     pub fn is_enabled(&self) -> Result<bool, String> {
-        let app_path_str = self.app_path.to_str().ok_or("Invalid app path")?;
-        let args: &[&str] = &[];
-        #[cfg(target_os = "macos")]
-        let autostart = AutoLaunch::new(
-            &self.app_name,
-            app_path_str,
-            false, // use_launch_agent: false = use AppleScript (default)
-            args,
-        );
-        #[cfg(not(target_os = "macos"))]
-        let autostart = AutoLaunch::new(
-            &self.app_name,
-            app_path_str,
-            args,
-        );
-        autostart.is_enabled().map_err(|e| format!("Failed to check autostart status: {}", e))
+        self.create_auto_launch()?
+            .is_enabled()
+            .map_err(|e| format!("Failed to check autostart status: {}", e))
     }
 }

@@ -7,7 +7,7 @@ import { readFileSync } from "fs";
 const packageJson = JSON.parse(readFileSync("./package.json", "utf-8"));
 
 // https://vitejs.dev/config/
-export default defineConfig(async () => ({
+export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
@@ -17,6 +17,9 @@ export default defineConfig(async () => ({
   define: {
     // Make version available as import.meta.env.VITE_APP_VERSION
     "import.meta.env.VITE_APP_VERSION": JSON.stringify(packageJson.version),
+  },
+  build: {
+    target: "es2022",
   },
 
   // Vite options tailored for Tauri development
@@ -29,4 +32,4 @@ export default defineConfig(async () => ({
       ignored: ["**/backend/**"],
     },
   },
-}));
+});

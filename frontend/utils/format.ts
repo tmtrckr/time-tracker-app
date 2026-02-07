@@ -76,25 +76,6 @@ export function truncate(str: string, maxLength: number): string {
 }
 
 /**
- * Get relative time string
- */
-export function getRelativeTime(timestamp: number): string {
-  const now = Date.now();
-  const diff = now - timestamp;
-  
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-  
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
-  
-  return new Date(timestamp).toLocaleDateString();
-}
-
-/**
  * Format date
  */
 export function formatDate(date: Date | number): string {
@@ -127,61 +108,6 @@ export function formatTime(timestamp: number, format: '12h' | '24h' = '24h'): st
     second: '2-digit',
     hour12: false,
   });
-}
-
-/**
- * Get start and end of day timestamps
- */
-export function getDayBounds(date: Date): { start: number; end: number } {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  
-  const end = new Date(date);
-  end.setHours(23, 59, 59, 999);
-  
-  return {
-    start: start.getTime(),
-    end: end.getTime(),
-  };
-}
-
-/**
- * Check if two dates are the same day
- */
-export function isSameDay(date1: Date, date2: Date): boolean {
-  return (
-    date1.getFullYear() === date2.getFullYear() &&
-    date1.getMonth() === date2.getMonth() &&
-    date1.getDate() === date2.getDate()
-  );
-}
-
-/**
- * Get entry type icon
- */
-export function getEntryTypeIcon(entryType: string): string {
-  const icons: Record<string, string> = {
-    meeting: '🎥',
-    thinking: '🧠',
-    call: '📞',
-    break: '☕',
-    personal: '🏠',
-  };
-  return icons[entryType] || '❓';
-}
-
-/**
- * Get entry type label
- */
-export function getEntryTypeLabel(entryType: string): string {
-  const labels: Record<string, string> = {
-    meeting: 'Meeting',
-    thinking: 'Thinking',
-    call: 'Call',
-    break: 'Break',
-    personal: 'Personal',
-  };
-  return labels[entryType] || entryType;
 }
 
 /**

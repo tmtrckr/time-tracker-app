@@ -1,10 +1,11 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "ES2022",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -23,13 +24,7 @@
     /* Paths */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["frontend/*"],
-      "@/components/*": ["frontend/components/*"],
-      "@/hooks/*": ["frontend/hooks/*"],
-      "@/services/*": ["frontend/services/*"],
-      "@/store/*": ["frontend/store/*"],
-      "@/types/*": ["frontend/types/*"],
-      "@/utils/*": ["frontend/utils/*"]
+      "@/*": ["frontend/*"]
     }
   },
   "include": ["frontend"],

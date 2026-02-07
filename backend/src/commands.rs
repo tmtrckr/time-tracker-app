@@ -7,6 +7,15 @@ use tauri::State;
 use serde::{Deserialize, Serialize};
 use chrono::{Utc, TimeZone, Local};
 
+/// Convert i32 from frontend (-1 = null, 0 = false, 1 = true) to Option<bool>.
+fn i32_to_opt_bool(val: i32) -> Option<bool> {
+    match val {
+        0 => Some(false),
+        1 => Some(true),
+        _ => None,
+    }
+}
+
 /// Application state containing database reference
 pub struct AppState {
     pub db: Arc<Database>,
@@ -140,7 +149,8 @@ pub fn get_today_total(state: State<'_, AppState>) -> Result<i64, String> {
         .date_naive()
         .and_hms_opt(0, 0, 0)
         .unwrap()
-        .and_utc()
+        .and_local_timezone(Local)
+        .unwrap()
         .timestamp();
     
     let last_activity = state.db.get_last_activity_today().map_err(|e| e.to_string())?;
@@ -388,19 +398,9 @@ pub fn update_category(
     project_id: Option<i64>,
     task_id: Option<i64>,
 ) -> Result<Category, String> {
-    // Конвертируем числа в Option<bool>: 1 -> Some(true), 0 -> Some(false), -1 -> None
-    let is_productive_bool = if is_productive == -1 {
-        None
-    } else {
-        Some(is_productive == 1)
-    };
-    
-    let is_billable_bool = if is_billable == -1 {
-        None
-    } else {
-        Some(is_billable == 1)
-    };
-    
+    let is_productive_bool = i32_to_opt_bool(is_productive);
+    let is_billable_bool = i32_to_opt_bool(is_billable);
+
     // Get current category to preserve is_pinned if not provided
     let current_category = state
         .db

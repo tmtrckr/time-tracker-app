@@ -15,7 +15,6 @@ build/
 *.local
 
 # Tauri
-backend/Cargo.lock
 
 # Logs
 logs/
@@ -63,7 +62,6 @@ desktop.ini
 # Rust
 target/
 **/*.rs.bk
-Cargo.lock
 
 # TypeScript
 *.tsbuildinfo

@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use chrono::{Utc, Local, Duration, NaiveDate, Datelike};
 
 /// Latest schema version; new installs get this without running migrations.
-const LATEST_SCHEMA_VERSION: i64 = 10;
+const LATEST_SCHEMA_VERSION: i64 = 11;
 
 /// System category IDs (negative to avoid conflicts with regular categories)
 pub const SYSTEM_CATEGORY_UNCATEGORIZED: i64 = -1;
@@ -415,7 +415,26 @@ impl Database {
         if version < 8  { self.migrate_v8(conn)?; }
         if version < 9  { self.migrate_v9(conn)?; }
         if version < 10 { self.migrate_v10(conn)?; }
+        if version < 11 { self.migrate_v11(conn)?; }
 
+        Ok(())
+    }
+
+    fn migrate_v11(&self, conn: &Connection) -> Result<()> {
+        let tx = conn.unchecked_transaction()?;
+        tx.execute(
+            "CREATE INDEX IF NOT EXISTS idx_activities_started_at_is_idle ON activities(started_at, is_idle)",
+            [],
+        )?;
+        tx.execute(
+            "CREATE INDEX IF NOT EXISTS idx_focus_sessions_ended_at ON focus_sessions(ended_at)",
+            [],
+        )?;
+        tx.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '11')",
+            [],
+        )?;
+        tx.commit()?;
         Ok(())
     }
 
@@ -1236,7 +1255,8 @@ impl Database {
             .date_naive()
             .and_hms_opt(0, 0, 0)
             .unwrap()
-            .and_utc()
+            .and_local_timezone(Local)
+            .unwrap()
             .timestamp();
 
         // Sum activities (excluding idle)
@@ -1267,7 +1287,8 @@ impl Database {
             .date_naive()
             .and_hms_opt(0, 0, 0)
             .unwrap()
-            .and_utc()
+            .and_local_timezone(Local)
+            .unwrap()
             .timestamp();
         
         conn.query_row(
@@ -2608,7 +2629,8 @@ impl Database {
                         .date_naive()
                         .and_hms_opt(0, 0, 0)
                         .unwrap()
-                        .and_utc()
+                        .and_local_timezone(Local)
+                        .unwrap()
                         .timestamp();
                     (today_start, now)
                 }
@@ -2616,7 +2638,7 @@ impl Database {
                     let today = Local::now().date_naive();
                     let weekday_num = today.weekday().num_days_from_monday() as i64;
                     let week_start = today - Duration::days(weekday_num);
-                    let week_start_ts = week_start.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp();
+                    let week_start_ts = week_start.and_hms_opt(0, 0, 0).unwrap().and_local_timezone(Local).unwrap().timestamp();
                     (week_start_ts, now)
                 }
                 "monthly" => {
@@ -2624,7 +2646,7 @@ impl Database {
                     let year = today.year();
                     let month = today.month();
                     let month_start = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
-                    let month_start_ts = month_start.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp();
+                    let month_start_ts = month_start.and_hms_opt(0, 0, 0).unwrap().and_local_timezone(Local).unwrap().timestamp();
                     (month_start_ts, now)
                 }
                 _ => continue,

@@ -30,19 +30,19 @@ export const useTasks = (projectId?: number, includeArchived = false) => {
 
   const createTask = async (task: Omit<Task, 'id' | 'created_at' | 'is_archived'>) => {
     const newTask = await api.tasks.createTask(task);
-    setTasks([...tasks, newTask]);
+    setTasks(prev => [...prev, newTask]);
     return newTask;
   };
 
   const updateTask = async (task: Task) => {
     const updated = await api.tasks.updateTask(task);
-    setTasks(tasks.map(t => t.id === task.id ? updated : t));
+    setTasks(prev => prev.map(t => t.id === task.id ? updated : t));
     return updated;
   };
 
   const deleteTask = async (id: number) => {
     await api.tasks.deleteTask(id);
-    setTasks(tasks.filter(t => t.id !== id));
+    setTasks(prev => prev.filter(t => t.id !== id));
   };
 
   return {

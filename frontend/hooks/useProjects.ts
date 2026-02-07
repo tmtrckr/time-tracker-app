@@ -30,7 +30,7 @@ export const useProjects = (includeArchived = false) => {
 
   const createProject = async (project: Omit<Project, 'id' | 'created_at' | 'is_archived'>) => {
     const newProject = await api.projects.createProject(project);
-    setProjects([...projects, newProject]);
+    setProjects(prev => [...prev, newProject]);
     return newProject;
   };
 
@@ -47,7 +47,7 @@ export const useProjects = (includeArchived = false) => {
 
   const deleteProject = async (id: number) => {
     await api.projects.deleteProject(id);
-    setProjects(projects.filter(p => p.id !== id));
+    setProjects(prev => prev.filter(p => p.id !== id));
   };
 
   return {

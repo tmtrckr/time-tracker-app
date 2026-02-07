@@ -7,7 +7,8 @@ import { useTasks } from '../../hooks/useTasks';
 import { useFocusSessions } from '../../hooks/useFocusSessions';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 import { formatDuration } from '../../utils/format';
-import { exportData, periodToDateRange } from '../../utils/export';
+import { exportData } from '../../utils/export';
+import { presetToDateRange } from '../../store';
 import { api } from '../../services/api';
 import { Filter, X, DollarSign } from 'lucide-react';
 type TimePeriod = 'today' | 'week' | 'month';
@@ -24,7 +25,7 @@ export const Reports: React.FC = () => {
   const { tasks: allTasks = [] } = useTasks(selectedProjectId || undefined, false);
   
   // Get date range for focus sessions
-  const dateRange = useMemo(() => periodToDateRange(period), [period]);
+  const dateRange = useMemo(() => presetToDateRange(period, new Date()), [period]);
   const { sessions: focusSessions = [] } = useFocusSessions(dateRange);
   
   // Calculate Pomodoro statistics

@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { api } from '../services/api';
 import { useStore } from '../store';
 import type { TimelineBlock } from '../types';
@@ -33,45 +32,11 @@ export function useActivities() {
       : null
   );
   
-  // Memoize date range calculation
-  const normalizedRange = useMemo(() => {
-    const now = new Date();
-    let range: { start: Date; end: Date };
-    
-    switch (dateRangePreset) {
-      case 'today':
-        range = {
-          start: startOfDay(now),
-          end: endOfDay(now),
-        };
-        break;
-      case 'week':
-        range = {
-          start: startOfWeek(now, { weekStartsOn: 1 }),
-          end: endOfWeek(now, { weekStartsOn: 1 }),
-        };
-        break;
-      case 'month':
-        range = {
-          start: startOfMonth(now),
-          end: endOfMonth(now),
-        };
-        break;
-      case 'custom':
-        range = {
-          start: customStartTimestamp !== null ? new Date(customStartTimestamp) : startOfDay(now),
-          end: customEndTimestamp !== null ? new Date(customEndTimestamp) : endOfDay(now),
-        };
-        break;
-      default:
-        range = {
-          start: startOfDay(now),
-          end: endOfDay(now),
-        };
-    }
-    
-    return range;
-  }, [dateRangePreset, customStartTimestamp, customEndTimestamp]);
+  // Memoize date range calculation (reuse store helper)
+  const normalizedRange = useMemo(
+    () => useStore.getState().getDateRange(),
+    [dateRangePreset, customStartTimestamp, customEndTimestamp]
+  );
 
   const startTime = normalizedRange.start.getTime();
   const endTime = normalizedRange.end.getTime();

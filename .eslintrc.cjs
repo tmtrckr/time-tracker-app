@@ -23,9 +23,4 @@ module.exports = {
     ],
     '@typescript-eslint/no-explicit-any': 'warn',
   },
-  settings: {
-    react: {
-      version: 'detect',
-    },
-  },
 };

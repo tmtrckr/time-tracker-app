@@ -37,12 +37,12 @@ export const useGoals = (activeOnly = true) => {
 
   const updateGoal = async (goal: Goal) => {
     await api.goals.updateGoal(goal);
-    setGoals(goals.map(g => g.id === goal.id ? goal : g));
+    setGoals(prev => prev.map(g => g.id === goal.id ? goal : g));
   };
 
   const deleteGoal = async (id: number) => {
     await api.goals.deleteGoal(id);
-    setGoals(goals.filter(g => g.id !== id));
+    setGoals(prev => prev.filter(g => g.id !== id));
   };
 
   const getGoalProgress = async (goalId: number, range: DateRange): Promise<GoalProgress> => {

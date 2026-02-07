@@ -11,6 +11,10 @@ const dateToTimestamp = (date: Date): number => {
   return Math.floor(date.getTime() / 1000);
 };
 
+// Convert boolean | null to Tauri i32: 1 = true, 0 = false, -1 = neutral/null
+const boolToTauriNum = (value: boolean | null | undefined): number =>
+  value === true ? 1 : value === false ? 0 : -1;
+
 // Activities API
 export const activitiesApi = {
   getActivities: (range: DateRange): Promise<Activity[]> => {
@@ -42,19 +46,14 @@ export const categoriesApi = {
   getCategories: async (): Promise<Category[]> => {
     return invoke<Category[]>('get_categories');
   },
-  
+
   createCategory: (category: Omit<Category, 'id'>): Promise<Category> => {
-    // Конвертируем булевы значения в числа для избежания проблем с десериализацией Option<bool> в Tauri
-    // 1 для true, 0 для false, -1 для neutral/null
-    const isProductiveNum = category.is_productive === true ? 1 : category.is_productive === false ? 0 : -1;
     return invoke('create_category', {
       name: category.name,
       color: category.color,
       icon: category.icon ?? null,
-      // Передаем как числа: 1 для true, 0 для false, -1 для neutral
-      // Используем camelCase для соответствия ожиданиям Tauri
-      isProductive: isProductiveNum,
-      isBillable: category.is_billable === true ? 1 : category.is_billable === false ? 0 : -1,
+      isProductive: boolToTauriNum(category.is_productive),
+      isBillable: boolToTauriNum(category.is_billable),
       hourlyRate: category.hourly_rate ?? null,
       sortOrder: category.sort_order,
       isSystem: category.is_system ?? false,
@@ -63,20 +62,15 @@ export const categoriesApi = {
       taskId: category.task_id ?? null,
     });
   },
-  
+
   updateCategory: (category: Category): Promise<Category> => {
-    // Конвертируем булевы значения в числа для избежания проблем с десериализацией Option<bool> в Tauri
-    // 1 для true, 0 для false, -1 для neutral/null
-    const isProductiveNum = category.is_productive === true ? 1 : category.is_productive === false ? 0 : -1;
     return invoke('update_category', {
       id: category.id,
       name: category.name,
       color: category.color,
       icon: category.icon ?? null,
-      // Передаем как числа: 1 для true, 0 для false, -1 для neutral
-      // Используем camelCase для соответствия ожиданиям Tauri
-      isProductive: isProductiveNum,
-      isBillable: category.is_billable === true ? 1 : category.is_billable === false ? 0 : -1,
+      isProductive: boolToTauriNum(category.is_productive),
+      isBillable: boolToTauriNum(category.is_billable),
       hourlyRate: category.hourly_rate ?? null,
       sortOrder: category.sort_order,
       isPinned: category.is_pinned ?? false,
