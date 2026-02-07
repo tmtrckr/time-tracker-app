@@ -1077,55 +1077,64 @@ impl Database {
     }
 
     /// Get activities for a time range with optional pagination (lazy loading)
-    /// If limit is None, returns all activities (backward compatibility)
+    /// - If limit is Some and offset is Some: returns limit items starting from offset
+    /// - If limit is Some and offset is None: returns first limit items
+    /// - If limit is None: returns all activities (backward compatibility)
     pub fn get_activities(&self, start: i64, end: i64, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<Activity>> {
         let conn = self.conn.lock().unwrap();
         
-        let activities = if let (Some(limit_val), Some(offset_val)) = (limit, offset) {
-            let mut stmt = conn.prepare(
-                "SELECT id, app_name, window_title, domain, category_id, project_id, task_id, started_at, duration_sec, is_idle
-                 FROM activities
-                 WHERE started_at >= ? AND started_at <= ?
-                 ORDER BY started_at ASC
-                 LIMIT ? OFFSET ?"
-            )?;
-            let rows = stmt.query_map(params![start, end, limit_val, offset_val], |row| {
-                Ok(Activity {
-                    id: row.get(0)?,
-                    app_name: row.get(1)?,
-                    window_title: row.get(2)?,
-                    domain: row.get(3)?,
-                    category_id: row.get(4)?,
-                    project_id: row.get(5)?,
-                    task_id: row.get(6)?,
-                    started_at: row.get(7)?,
-                    duration_sec: row.get(8)?,
-                    is_idle: row.get(9)?,
-                })
-            })?;
-            rows.collect::<Result<Vec<_>>>()?
-        } else {
-            let mut stmt = conn.prepare(
-                "SELECT id, app_name, window_title, domain, category_id, project_id, task_id, started_at, duration_sec, is_idle
-                 FROM activities
-                 WHERE started_at >= ? AND started_at <= ?
-                 ORDER BY started_at ASC"
-            )?;
-            let rows = stmt.query_map(params![start, end], |row| {
-                Ok(Activity {
-                    id: row.get(0)?,
-                    app_name: row.get(1)?,
-                    window_title: row.get(2)?,
-                    domain: row.get(3)?,
-                    category_id: row.get(4)?,
-                    project_id: row.get(5)?,
-                    task_id: row.get(6)?,
-                    started_at: row.get(7)?,
-                    duration_sec: row.get(8)?,
-                    is_idle: row.get(9)?,
-                })
-            })?;
-            rows.collect::<Result<Vec<_>>>()?
+        // Helper closure to map row to Activity
+        let map_row = |row: &rusqlite::Row| -> Result<Activity> {
+            Ok(Activity {
+                id: row.get(0)?,
+                app_name: row.get(1)?,
+                window_title: row.get(2)?,
+                domain: row.get(3)?,
+                category_id: row.get(4)?,
+                project_id: row.get(5)?,
+                task_id: row.get(6)?,
+                started_at: row.get(7)?,
+                duration_sec: row.get(8)?,
+                is_idle: row.get(9)?,
+            })
+        };
+        
+        let activities = match (limit, offset) {
+            (Some(limit_val), Some(offset_val)) => {
+                // Both limit and offset provided
+                let mut stmt = conn.prepare(
+                    "SELECT id, app_name, window_title, domain, category_id, project_id, task_id, started_at, duration_sec, is_idle
+                     FROM activities
+                     WHERE started_at >= ? AND started_at <= ?
+                     ORDER BY started_at ASC
+                     LIMIT ? OFFSET ?"
+                )?;
+                let rows = stmt.query_map(params![start, end, limit_val, offset_val], map_row)?;
+                rows.collect::<Result<Vec<_>>>()?
+            }
+            (Some(limit_val), None) => {
+                // Only limit provided - get first N items
+                let mut stmt = conn.prepare(
+                    "SELECT id, app_name, window_title, domain, category_id, project_id, task_id, started_at, duration_sec, is_idle
+                     FROM activities
+                     WHERE started_at >= ? AND started_at <= ?
+                     ORDER BY started_at ASC
+                     LIMIT ?"
+                )?;
+                let rows = stmt.query_map(params![start, end, limit_val], map_row)?;
+                rows.collect::<Result<Vec<_>>>()?
+            }
+            (None, _) => {
+                // No limit - return all activities (backward compatibility)
+                let mut stmt = conn.prepare(
+                    "SELECT id, app_name, window_title, domain, category_id, project_id, task_id, started_at, duration_sec, is_idle
+                     FROM activities
+                     WHERE started_at >= ? AND started_at <= ?
+                     ORDER BY started_at ASC"
+                )?;
+                let rows = stmt.query_map(params![start, end], map_row)?;
+                rows.collect::<Result<Vec<_>>>()?
+            }
         };
 
         Ok(activities)
