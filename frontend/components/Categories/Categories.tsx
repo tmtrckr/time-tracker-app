@@ -68,11 +68,12 @@ export const Categories: React.FC = () => {
     if (confirm('Delete category? Records will be marked as "Uncategorized"')) {
       try {
         await deleteCategory(id);
-      } catch (error: any) {
-        if (error?.message?.includes('system')) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to delete category';
+        if (errorMessage.includes('system')) {
           alert('Cannot delete system category.');
         } else {
-          alert(error?.message || 'Failed to delete category');
+          alert(errorMessage);
         }
       }
     }

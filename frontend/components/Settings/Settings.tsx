@@ -86,6 +86,7 @@ const Settings: React.FC<SettingsProps> = () => {
     if (settingsActiveTab) {
       setActiveTab(settingsActiveTab);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only on mount
 
   // Sync activeTab changes to store

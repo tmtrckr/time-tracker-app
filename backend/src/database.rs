@@ -244,12 +244,78 @@ impl Database {
         "#)?;
         
         // System categories use negative IDs to avoid conflicts with regular categories
-        conn.execute_batch(r#"
-            INSERT OR IGNORE INTO categories (id, name, color, icon, is_productive, sort_order, is_system, is_pinned) VALUES
-                (-1, 'Uncategorized', '#9E9E9E', '❓', NULL, 8, TRUE, FALSE),
-                (-2, 'Break', '#795548', '☕', FALSE, 7, TRUE, TRUE),
-                (-3, 'Thinking', '#00BCD4', '🧠', TRUE, 6, TRUE, TRUE);
-        "#)?;
+        // Ensure system categories exist - check by name to handle cases where category exists with different ID
+        for (id, name, color, icon, is_productive, sort_order, is_pinned) in [
+            (-1, "Uncategorized", "#9E9E9E", "❓", None::<bool>, 8, false),
+            (-2, "Break", "#795548", "☕", Some(false), 7, true),
+            (-3, "Thinking", "#00BCD4", "🧠", Some(true), 6, true),
+        ] {
+            // Check if category exists by ID
+            let exists_by_id: bool = conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM categories WHERE id = ?)",
+                params![id],
+                |row| row.get(0),
+            ).unwrap_or(false);
+            
+            // Check if category exists by name (might have different ID)
+            let existing_id: Option<i64> = conn.query_row(
+                "SELECT id FROM categories WHERE name = ?",
+                params![name],
+                |row| row.get(0),
+            ).ok();
+            
+            if exists_by_id {
+                // Category already exists with correct ID, ensure it has correct system properties
+                let _ = conn.execute(
+                    "UPDATE categories SET color = ?, icon = ?, is_productive = ?, sort_order = ?, is_system = TRUE, is_pinned = ? WHERE id = ?",
+                    params![color, icon, is_productive, sort_order, is_pinned, id],
+                );
+            } else if let Some(existing_id_val) = existing_id {
+                // Category exists with different ID - we need to migrate it to the system ID
+                // Strategy: Create the target category with a temporary unique name first,
+                // update all foreign key references, then delete the old category and rename the new one
+                
+                // Step 1: Create the target category with a temporary unique name
+                let temp_name = format!("__TEMP_SYSTEM_{}_{}", id, chrono::Utc::now().timestamp());
+                conn.execute(
+                    "INSERT INTO categories (id, name, color, icon, is_productive, sort_order, is_system, is_pinned) VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)",
+                    params![id, temp_name, color, icon, is_productive, sort_order, is_pinned],
+                )?;
+                
+                // Step 2: Update all foreign key references to point to the new system ID
+                let _ = conn.execute(
+                    "UPDATE activities SET category_id = ? WHERE category_id = ?",
+                    params![id, existing_id_val],
+                );
+                let _ = conn.execute(
+                    "UPDATE manual_entries SET category_id = ? WHERE category_id = ?",
+                    params![id, existing_id_val],
+                );
+                let _ = conn.execute(
+                    "UPDATE rules SET category_id = ? WHERE category_id = ?",
+                    params![id, existing_id_val],
+                );
+                let _ = conn.execute(
+                    "UPDATE goals SET category_id = ? WHERE category_id = ?",
+                    params![id, existing_id_val],
+                );
+                
+                // Step 3: Now delete the old category (should work since all references are updated)
+                conn.execute("DELETE FROM categories WHERE id = ?", params![existing_id_val])?;
+                
+                // Step 4: Update the temp category to have the correct name
+                conn.execute(
+                    "UPDATE categories SET name = ? WHERE id = ?",
+                    params![name, id],
+                )?;
+            } else {
+                // Category doesn't exist, insert it
+                conn.execute(
+                    "INSERT INTO categories (id, name, color, icon, is_productive, sort_order, is_system, is_pinned) VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)",
+                    params![id, name, color, icon, is_productive, sort_order, is_pinned],
+                )?;
+            }
+        }
 
         // Insert default rules (only if they don't exist)
         // Find categories by name and insert rules only if they don't already exist
@@ -992,6 +1058,21 @@ impl Database {
     /// Record idle start time
     pub fn record_idle_start(&self, timestamp: i64) -> Result<()> {
         let conn = self.conn.lock().unwrap();
+        
+        // Ensure system category exists before using it
+        let category_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM categories WHERE id = ?)",
+            params![SYSTEM_CATEGORY_UNCATEGORIZED],
+            |row| row.get(0),
+        ).unwrap_or(false);
+        
+        if !category_exists {
+            conn.execute(
+                "INSERT INTO categories (id, name, color, icon, is_productive, sort_order, is_system, is_pinned) VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)",
+                params![SYSTEM_CATEGORY_UNCATEGORIZED, "Uncategorized", "#9E9E9E", "❓", None::<bool>, 8, false],
+            )?;
+        }
+        
         conn.execute(
             "INSERT INTO activities (app_name, window_title, domain, category_id, project_id, task_id, started_at, duration_sec, is_idle)
              VALUES ('Idle', NULL, NULL, ?, NULL, NULL, ?, 0, TRUE)",

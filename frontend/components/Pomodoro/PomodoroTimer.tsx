@@ -3,7 +3,6 @@ import { usePomodoro } from '../../hooks/usePomodoro';
 import { useProjects } from '../../hooks/useProjects';
 import { useTasks } from '../../hooks/useTasks';
 import { useStore } from '../../store';
-import store from '../../store';
 import { formatTimerTime } from '../../utils/format';
 import { showSuccess, handleApiError } from '../../utils/toast';
 import Button from '../Common/Button';

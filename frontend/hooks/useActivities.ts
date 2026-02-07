@@ -80,11 +80,7 @@ export function useActivities() {
   return useQuery({
     queryKey,
     queryFn: async () => {
-      try {
-        return await withTimeout(api.activities.getActivities(normalizedRange), 10000); // 10 second timeout
-      } catch (error) {
-        throw error;
-      }
+      return await withTimeout(api.activities.getActivities(normalizedRange), 10000); // 10 second timeout
     },
     retry: 1,
     retryDelay: 1000,
@@ -98,11 +94,7 @@ export function useDailyStats(date?: Date) {
   return useQuery({
     queryKey: ['dailyStats', targetDate.getTime()],
     queryFn: async () => {
-      try {
-        return await withTimeout(api.stats.getDailyStats(targetDate), 10000); // 10 second timeout
-      } catch (error) {
-        throw error;
-      }
+      return await withTimeout(api.stats.getDailyStats(targetDate), 10000); // 10 second timeout
     },
     retry: 1,
     retryDelay: 1000,

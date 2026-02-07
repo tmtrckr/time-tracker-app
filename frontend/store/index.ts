@@ -118,6 +118,7 @@ const store = create<AppState>()(
       // Settings navigation (not persisted - runtime only)
       pendingRuleData: null,
       settingsActiveTab: null,
+      scrollToIdlePromptThreshold: false,
 
       // Actions
       setCurrentView: (view) => set({ currentView: view }),

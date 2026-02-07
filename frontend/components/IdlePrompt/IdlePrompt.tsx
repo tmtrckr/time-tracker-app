@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useStore } from '../../store';
 import { formatDuration } from '../../utils/format';
 import Button from '../Common/Button';
 import { usePinnedCategories } from '../../hooks/useCategories';
@@ -13,7 +12,6 @@ interface IdlePromptProps {
 }
 
 const IdlePrompt: React.FC<IdlePromptProps> = ({ durationMinutes, onSubmit, onSkip, onNavigateToSettings }) => {
-  const { settings } = useStore();
   const { data: pinnedCategories = [] } = usePinnedCategories();
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [description, setDescription] = useState('');

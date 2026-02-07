@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { screenshots, Screenshot } from '../data/screenshots';
 
 const Screenshots: React.FC = () => {
@@ -14,7 +14,7 @@ const Screenshots: React.FC = () => {
     document.body.style.overflow = 'unset';
   };
 
-  const navigateScreenshot = (direction: 'prev' | 'next') => {
+  const navigateScreenshot = useCallback((direction: 'prev' | 'next') => {
     if (!selectedScreenshot) return;
     const currentIndex = screenshots.findIndex(s => s.id === selectedScreenshot.id);
     let newIndex: number;
@@ -26,7 +26,7 @@ const Screenshots: React.FC = () => {
     }
 
     setSelectedScreenshot(screenshots[newIndex]);
-  };
+  }, [selectedScreenshot]);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -38,7 +38,7 @@ const Screenshots: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedScreenshot]);
+  }, [selectedScreenshot, navigateScreenshot]);
 
   return (
     <>

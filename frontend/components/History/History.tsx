@@ -37,6 +37,8 @@ const History: React.FC<HistoryProps> = ({
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [activeDate, setActiveDate] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
+  const virtualActivityStartTimeRef = useRef<number | null>(null);
+  const previousAppRef = useRef<string | null>(null);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const dateHeadersRef = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -216,7 +218,25 @@ const History: React.FC<HistoryProps> = ({
                                  trackerStatus.currentApp !== lastActivity.app_name &&
                                  (now - lastActivity.started_at) > 5; // Only if last activity is older than 5 seconds
     
-    const activitiesToProcess = needsVirtualCurrent && lastActivity ? [
+    // Reset virtual activity start time if conditions changed
+    const currentApp = trackerStatus?.currentApp || null;
+    const appChanged = currentApp !== previousAppRef.current;
+    
+    if (!needsVirtualCurrent) {
+      // Tracking stopped, paused, or no longer need virtual activity
+      virtualActivityStartTimeRef.current = null;
+      previousAppRef.current = currentApp;
+    } else if (appChanged && virtualActivityStartTimeRef.current !== null) {
+      // App changed while virtual activity exists - reset it
+      virtualActivityStartTimeRef.current = null;
+      previousAppRef.current = currentApp;
+    } else if (needsVirtualCurrent && virtualActivityStartTimeRef.current === null) {
+      // Set start time when virtual activity is first created
+      virtualActivityStartTimeRef.current = now - 5; // Start 5 seconds ago to account for polling delay
+      previousAppRef.current = currentApp;
+    }
+    
+    const activitiesToProcess = needsVirtualCurrent && lastActivity && virtualActivityStartTimeRef.current !== null ? [
       ...sortedActivities,
       // Virtual current activity
       {
@@ -227,7 +247,7 @@ const History: React.FC<HistoryProps> = ({
         category_id: null,
         project_id: lastActivity.project_id,
         task_id: lastActivity.task_id,
-        started_at: now - 5, // Start 5 seconds ago to account for polling delay
+        started_at: virtualActivityStartTimeRef.current, // Use fixed start time, not recalculated
         duration_sec: 5,
         is_idle: false,
       } as Activity
