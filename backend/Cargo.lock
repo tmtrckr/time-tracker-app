@@ -3485,7 +3485,7 @@ dependencies = [
 
 [[package]]
 name = "time-tracker-app"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "active-win-pos-rs",
  "auto-launch",

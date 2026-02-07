@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use chrono::{Utc, Local, Duration, NaiveDate, Datelike};
 
 /// Latest schema version; new installs get this without running migrations.
-const LATEST_SCHEMA_VERSION: i64 = 11;
+const LATEST_SCHEMA_VERSION: i64 = 12;
 
 /// System category IDs (negative to avoid conflicts with regular categories)
 pub const SYSTEM_CATEGORY_UNCATEGORIZED: i64 = -1;
@@ -229,6 +229,17 @@ impl Database {
                 key TEXT PRIMARY KEY,
                 value TEXT
             );
+
+            -- Installed plugins table
+            CREATE TABLE IF NOT EXISTS installed_plugins (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                version TEXT NOT NULL,
+                description TEXT,
+                is_builtin BOOLEAN DEFAULT FALSE,
+                installed_at INTEGER NOT NULL,
+                enabled BOOLEAN DEFAULT TRUE
+            );
         "#)?;
 
         // Check if this is a fresh install or existing database
@@ -419,6 +430,7 @@ impl Database {
         if version < 9  { self.migrate_v9(conn)?; }
         if version < 10 { self.migrate_v10(conn)?; }
         if version < 11 { self.migrate_v11(conn)?; }
+        if version < 12 { self.migrate_v12(conn)?; }
 
         Ok(())
     }
@@ -435,6 +447,27 @@ impl Database {
         )?;
         tx.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '11')",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn migrate_v12(&self, conn: &Connection) -> Result<()> {
+        let tx = conn.unchecked_transaction()?;
+        tx.execute_batch(r#"
+            CREATE TABLE IF NOT EXISTS installed_plugins (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                version TEXT NOT NULL,
+                description TEXT,
+                is_builtin BOOLEAN DEFAULT FALSE,
+                installed_at INTEGER NOT NULL,
+                enabled BOOLEAN DEFAULT TRUE
+            );
+        "#)?;
+        tx.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '12')",
             [],
         )?;
         tx.commit()?;
@@ -2956,5 +2989,162 @@ impl<T> OptionalExtension<T> for Result<T> {
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e),
         }
+    }
+}
+
+// Plugin management methods
+impl Database {
+    /// Check if a plugin is installed
+    pub fn is_plugin_installed(&self, plugin_id: &str) -> Result<bool, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let exists: bool = conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM installed_plugins WHERE id = ?)",
+                params![plugin_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| format!("Failed to check plugin installation: {}", e))?;
+        Ok(exists)
+    }
+
+    /// Install a plugin
+    pub fn install_plugin(
+        &self,
+        plugin_id: &str,
+        name: &str,
+        version: &str,
+        description: Option<&str>,
+        is_builtin: bool,
+    ) -> Result<(), String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let installed_at = chrono::Utc::now().timestamp();
+        
+        conn.execute(
+            "INSERT OR REPLACE INTO installed_plugins (id, name, version, description, is_builtin, installed_at, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            params![plugin_id, name, version, description, is_builtin, installed_at, true],
+        )
+        .map_err(|e| format!("Failed to install plugin: {}", e))?;
+        
+        Ok(())
+    }
+
+    /// Uninstall a plugin
+    pub fn uninstall_plugin(&self, plugin_id: &str) -> Result<(), String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute(
+            "DELETE FROM installed_plugins WHERE id = ?",
+            params![plugin_id],
+        )
+        .map_err(|e| format!("Failed to uninstall plugin: {}", e))?;
+        
+        Ok(())
+    }
+
+    /// Enable/disable a plugin
+    pub fn set_plugin_enabled(&self, plugin_id: &str, enabled: bool) -> Result<(), String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute(
+            "UPDATE installed_plugins SET enabled = ? WHERE id = ?",
+            params![enabled, plugin_id],
+        )
+        .map_err(|e| format!("Failed to update plugin status: {}", e))?;
+        
+        Ok(())
+    }
+
+    /// Get all installed plugins
+    pub fn get_installed_plugins(&self) -> Result<Vec<(String, String, String, Option<String>, bool, bool)>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare("SELECT id, name, version, description, is_builtin, enabled FROM installed_plugins")
+            .map_err(|e| format!("Failed to prepare query: {}", e))?;
+        
+        let plugins = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, bool>(4)?,
+                    row.get::<_, bool>(5)?,
+                ))
+            })
+            .map_err(|e| format!("Failed to query plugins: {}", e))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("Failed to collect plugins: {}", e))?;
+        
+        Ok(plugins)
+    }
+
+    /// Apply plugin extensions to database schema
+    pub fn apply_plugin_extensions(&self, extension_registry: &crate::plugin_system::extensions::ExtensionRegistry) -> Result<(), String> {
+        use crate::plugin_system::extensions::{EntityType, SchemaChange};
+        
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let tx = conn.unchecked_transaction().map_err(|e| format!("Failed to start transaction: {}", e))?;
+        
+        // Apply schema extensions for all entity types
+        for entity_type in [EntityType::Activity, EntityType::ManualEntry, EntityType::Category] {
+            let extensions = extension_registry.get_schema_extensions(entity_type);
+            
+            for extension in extensions {
+                for schema_change in &extension.schema_changes {
+                    match schema_change {
+                        SchemaChange::AddColumn { table, column, column_type, default, foreign_key } => {
+                            // Check if column already exists
+                            let column_exists: bool = tx.query_row(
+                                "SELECT EXISTS(SELECT 1 FROM pragma_table_info(?) WHERE name = ?)",
+                                params![table, column],
+                                |row| row.get(0),
+                            ).unwrap_or(false);
+                            
+                            if !column_exists {
+                                let mut sql = format!("ALTER TABLE {} ADD COLUMN {} {}", table, column, column_type);
+                                
+                                if let Some(default_val) = default {
+                                    sql.push_str(&format!(" DEFAULT {}", default_val));
+                                }
+                                
+                                tx.execute(&sql, [])
+                                    .map_err(|e| format!("Failed to add column {} to {}: {}", column, table, e))?;
+                                
+                                // Add foreign key constraint if specified
+                                if let Some(fk) = foreign_key {
+                                    // SQLite doesn't support adding foreign keys via ALTER TABLE ADD COLUMN
+                                    // Foreign keys are checked at runtime if foreign keys are enabled
+                                    // We'll create an index for performance
+                                    let index_name = format!("idx_{}_{}", table, column);
+                                    let index_sql = format!(
+                                        "CREATE INDEX IF NOT EXISTS {} ON {}({})",
+                                        index_name, table, column
+                                    );
+                                    tx.execute(&index_sql, []).ok();
+                                }
+                            }
+                        }
+                        SchemaChange::AddIndex { table, index, columns } => {
+                            let columns_str = columns.join(", ");
+                            let sql = format!("CREATE INDEX IF NOT EXISTS {} ON {}({})", index, table, columns_str);
+                            tx.execute(&sql, [])
+                                .map_err(|e| format!("Failed to create index {}: {}", index, e))?;
+                        }
+                        SchemaChange::AddForeignKey { table, column, foreign_table, foreign_column } => {
+                            // SQLite doesn't support adding foreign keys after table creation
+                            // We'll just create an index for performance
+                            let index_name = format!("idx_{}_{}_fk", table, column);
+                            let sql = format!(
+                                "CREATE INDEX IF NOT EXISTS {} ON {}({})",
+                                index_name, table, column
+                            );
+                            tx.execute(&sql, []).ok();
+                        }
+                    }
+                }
+            }
+        }
+        
+        tx.commit().map_err(|e| format!("Failed to commit transaction: {}", e))?;
+        Ok(())
     }
 }

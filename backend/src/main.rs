@@ -6,14 +6,47 @@ mod commands;
 mod database;
 mod idle;
 mod pomodoro;
+mod plugin_system;
 mod tracker;
 mod tray;
 mod window;
 
 use commands::AppState;
 use database::Database;
+use plugin_system::{PluginRegistry, ExtensionRegistry};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
+
+/// Install built-in plugins if they're not already installed
+fn install_builtin_plugins(
+    db: &Arc<Database>,
+    _plugin_registry: &Arc<PluginRegistry>,
+    _extension_registry: &Arc<ExtensionRegistry>,
+) -> Result<(), String> {
+    let builtin_plugins = vec![
+        ("projects-tasks-plugin", "Projects/Tasks", "1.0.0", "Project and task management"),
+        ("billing-plugin", "Billing", "1.0.0", "Billable time tracking"),
+        ("pomodoro-plugin", "Pomodoro", "1.0.0", "Pomodoro timer"),
+        ("goals-plugin", "Goals", "1.0.0", "Goal tracking"),
+    ];
+    
+    for (plugin_id, name, version, description) in builtin_plugins {
+        match db.is_plugin_installed(plugin_id) {
+            Ok(false) => {
+                db.install_plugin(plugin_id, name, version, Some(description), true)?;
+                eprintln!("Installed built-in plugin: {}", plugin_id);
+            }
+            Ok(true) => {
+                // Plugin already installed
+            }
+            Err(e) => {
+                eprintln!("Warning: Failed to check if plugin {} is installed: {}", plugin_id, e);
+            }
+        }
+    }
+    
+    Ok(())
+}
 
 fn main() {
     // Get data directory
@@ -26,6 +59,20 @@ fn main() {
     let db = Arc::new(
         Database::new(db_path).expect("Failed to initialize database"),
     );
+
+    // Initialize plugin system
+    let extension_registry = Arc::new(ExtensionRegistry::new());
+    let plugin_registry = Arc::new(PluginRegistry::new(Arc::clone(&db)));
+    
+    // Install built-in plugins if not already installed
+    if let Err(e) = install_builtin_plugins(&db, &plugin_registry, &extension_registry) {
+        eprintln!("Warning: Failed to install built-in plugins: {}", e);
+    }
+    
+    // Apply plugin extensions to database schema
+    if let Err(e) = db.apply_plugin_extensions(&extension_registry) {
+        eprintln!("Warning: Failed to apply plugin extensions: {}", e);
+    }
 
     // Create app state
     let app_state = AppState {
