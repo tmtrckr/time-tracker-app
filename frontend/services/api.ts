@@ -17,11 +17,14 @@ const boolToTauriNum = (value: boolean | null | undefined): number =>
 
 // Activities API
 export const activitiesApi = {
-  getActivities: (range: DateRange): Promise<Activity[]> => {
-    return invoke('get_activities', {
+  getActivities: (range: DateRange, limit?: number, offset?: number): Promise<Activity[]> => {
+    const params: Record<string, unknown> = {
       start: dateToTimestamp(range.start),
       end: dateToTimestamp(range.end),
-    });
+    };
+    if (limit !== undefined) params.limit = limit;
+    if (offset !== undefined) params.offset = offset;
+    return invoke('get_activities', params);
   },
   
   getActivityById: (id: number): Promise<Activity | null> => {

@@ -25,16 +25,19 @@ pub struct AppState {
     pub active_task_id: Arc<Mutex<Option<i64>>>,
 }
 
-/// Get activities for a time range
+/// Get activities for a time range with optional pagination (lazy loading)
+/// If limit is None, returns all activities (backward compatibility)
 #[tauri::command]
 pub fn get_activities(
     state: State<'_, AppState>,
     start: i64,
     end: i64,
+    limit: Option<i64>,
+    offset: Option<i64>,
 ) -> Result<Vec<Activity>, String> {
     state
         .db
-        .get_activities(start, end)
+        .get_activities(start, end, limit, offset)
         .map_err(|e| e.to_string())
 }
 
@@ -1090,7 +1093,7 @@ pub fn export_to_csv(
     end: i64,
     file_path: String,
 ) -> Result<(), String> {
-    let activities = state.db.get_activities(start, end).map_err(|e| e.to_string())?;
+    let activities = state.db.get_activities(start, end, None, None).map_err(|e| e.to_string())?;
     let categories = state.db.get_categories().map_err(|e| e.to_string())?;
     
     // Create file and write UTF-8 BOM for Excel compatibility
@@ -1149,7 +1152,7 @@ pub fn export_to_json(
     end: i64,
     file_path: String,
 ) -> Result<(), String> {
-    let activities = state.db.get_activities(start, end).map_err(|e| e.to_string())?;
+    let activities = state.db.get_activities(start, end, None, None).map_err(|e| e.to_string())?;
     
     let json = serde_json::to_string_pretty(&activities)
         .map_err(|e| format!("Failed to serialize JSON: {}", e))?;
