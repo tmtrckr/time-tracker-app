@@ -227,8 +227,8 @@ const History: React.FC<HistoryProps> = ({
       virtualActivityStartTimeRef.current = null;
       previousAppRef.current = currentApp;
     } else if (appChanged && virtualActivityStartTimeRef.current !== null) {
-      // App changed while virtual activity exists - reset it
-      virtualActivityStartTimeRef.current = null;
+      // App changed while virtual activity exists - reset it and immediately set new start time
+      virtualActivityStartTimeRef.current = now - 5; // Start 5 seconds ago to account for polling delay
       previousAppRef.current = currentApp;
     } else if (needsVirtualCurrent && virtualActivityStartTimeRef.current === null) {
       // Set start time when virtual activity is first created

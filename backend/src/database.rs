@@ -5,6 +5,9 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use chrono::{Utc, Local, Duration, NaiveDate, Datelike};
 
+/// Latest schema version; new installs get this without running migrations.
+const LATEST_SCHEMA_VERSION: i64 = 10;
+
 /// System category IDs (negative to avoid conflicts with regular categories)
 pub const SYSTEM_CATEGORY_UNCATEGORIZED: i64 = -1;
 pub const SYSTEM_CATEGORY_BREAK: i64 = -2;
@@ -228,8 +231,28 @@ impl Database {
             );
         "#)?;
 
-        // Run migrations
-        self.migrate(&conn)?;
+        // Check if this is a fresh install or existing database
+        let existing_version: Option<i64> = conn
+            .query_row(
+                "SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'schema_version'",
+                [],
+                |row| row.get(0),
+            )
+            .ok();
+
+        match existing_version {
+            None => {
+                // Fresh install -- schema is already at latest, just record version
+                conn.execute(
+                    "INSERT INTO settings (key, value) VALUES ('schema_version', ?)",
+                    params![LATEST_SCHEMA_VERSION],
+                )?;
+            }
+            Some(_) => {
+                // Existing database -- run incremental migrations
+                self.migrate(&conn)?;
+            }
+        }
 
         // Insert default categories if not exist
         // Regular categories use AUTOINCREMENT (no id specified)
@@ -266,9 +289,10 @@ impl Database {
             
             if exists_by_id {
                 // Category already exists with correct ID, ensure it has correct system properties
+                // Include name in UPDATE to fix any leftover temp names from failed migrations
                 let _ = conn.execute(
-                    "UPDATE categories SET color = ?, icon = ?, is_productive = ?, sort_order = ?, is_system = TRUE, is_pinned = ? WHERE id = ?",
-                    params![color, icon, is_productive, sort_order, is_pinned, id],
+                    "UPDATE categories SET name = ?, color = ?, icon = ?, is_productive = ?, sort_order = ?, is_system = TRUE, is_pinned = ? WHERE id = ?",
+                    params![name, color, icon, is_productive, sort_order, is_pinned, id],
                 );
             } else if let Some(existing_id_val) = existing_id {
                 // Category exists with different ID - we need to migrate it to the system ID
@@ -368,446 +392,349 @@ impl Database {
         Ok(())
     }
 
+    fn get_schema_version(&self, conn: &Connection) -> i64 {
+        conn.query_row(
+            "SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'schema_version'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0)
+    }
+
     /// Run database migrations
     fn migrate(&self, conn: &Connection) -> Result<()> {
-        // Get current schema version
-        let version: i64 = conn
-            .query_row(
-                "SELECT value FROM settings WHERE key = 'schema_version'",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap_or(0);
+        let version = self.get_schema_version(conn);
 
-        // Migration 1: Add domain column to activities
-        if version < 1 {
-            let _ = conn.execute(
-                "ALTER TABLE activities ADD COLUMN domain TEXT",
-                [],
+        if version < 1  { self.migrate_v1(conn)?; }
+        if version < 2  { self.migrate_v2(conn)?; }
+        if version < 3  { self.migrate_v3(conn)?; }
+        if version < 4  { self.migrate_v4(conn)?; }
+        if version < 5  { self.migrate_v5(conn)?; }
+        if version < 6  { self.migrate_v6(conn)?; }
+        if version < 7  { self.migrate_v7(conn)?; }
+        if version < 8  { self.migrate_v8(conn)?; }
+        if version < 9  { self.migrate_v9(conn)?; }
+        if version < 10 { self.migrate_v10(conn)?; }
+
+        Ok(())
+    }
+
+    fn migrate_v1(&self, conn: &Connection) -> Result<()> {
+        let tx = conn.unchecked_transaction()?;
+        let _ = tx.execute("ALTER TABLE activities ADD COLUMN domain TEXT", []);
+        tx.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '1')",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn migrate_v2(&self, conn: &Connection) -> Result<()> {
+        let tx = conn.unchecked_transaction()?;
+        let _ = tx.execute("ALTER TABLE categories ADD COLUMN is_billable BOOLEAN DEFAULT FALSE", []);
+        let _ = tx.execute("ALTER TABLE categories ADD COLUMN hourly_rate REAL DEFAULT 0.0", []);
+        tx.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '2')",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn migrate_v3(&self, conn: &Connection) -> Result<()> {
+        let tx = conn.unchecked_transaction()?;
+        let _ = tx.execute_batch(r#"
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                client_name TEXT,
+                color TEXT DEFAULT '#888888',
+                is_billable BOOLEAN DEFAULT FALSE,
+                hourly_rate REAL DEFAULT 0.0,
+                budget_hours REAL,
+                created_at INTEGER NOT NULL,
+                archived BOOLEAN DEFAULT FALSE
             );
-            conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '1')",
-                [],
-            )?;
+            CREATE INDEX IF NOT EXISTS idx_projects_archived ON projects(archived);
+        "#);
+        let _ = tx.execute_batch(r#"
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                created_at INTEGER NOT NULL,
+                archived BOOLEAN DEFAULT FALSE,
+                FOREIGN KEY (project_id) REFERENCES projects(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+            CREATE INDEX IF NOT EXISTS idx_tasks_archived ON tasks(archived);
+        "#);
+        let _ = tx.execute("ALTER TABLE activities ADD COLUMN project_id INTEGER", []);
+        let _ = tx.execute("ALTER TABLE activities ADD COLUMN task_id INTEGER", []);
+        let _ = tx.execute("ALTER TABLE manual_entries ADD COLUMN project_id INTEGER", []);
+        let _ = tx.execute("ALTER TABLE manual_entries ADD COLUMN task_id INTEGER", []);
+        let _ = tx.execute("CREATE INDEX IF NOT EXISTS idx_activities_domain ON activities(domain)", []);
+        let _ = tx.execute("CREATE INDEX IF NOT EXISTS idx_activities_project ON activities(project_id)", []);
+        tx.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '3')",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn migrate_v4(&self, conn: &Connection) -> Result<()> {
+        let tx = conn.unchecked_transaction()?;
+        let _ = tx.execute_batch(r#"
+            CREATE TABLE IF NOT EXISTS focus_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                started_at INTEGER NOT NULL,
+                ended_at INTEGER,
+                duration_sec INTEGER,
+                pomodoro_type TEXT DEFAULT 'work',
+                project_id INTEGER,
+                task_id INTEGER,
+                completed BOOLEAN DEFAULT FALSE,
+                FOREIGN KEY (project_id) REFERENCES projects(id),
+                FOREIGN KEY (task_id) REFERENCES tasks(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_focus_sessions_started ON focus_sessions(started_at);
+        "#);
+        tx.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '4')",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn migrate_v5(&self, conn: &Connection) -> Result<()> {
+        let tx = conn.unchecked_transaction()?;
+        let _ = tx.execute_batch(r#"
+            CREATE TABLE IF NOT EXISTS goals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                goal_type TEXT NOT NULL,
+                target_seconds INTEGER NOT NULL,
+                category_id INTEGER,
+                project_id INTEGER,
+                start_date INTEGER NOT NULL,
+                end_date INTEGER,
+                created_at INTEGER NOT NULL,
+                active BOOLEAN DEFAULT TRUE,
+                FOREIGN KEY (category_id) REFERENCES categories(id),
+                FOREIGN KEY (project_id) REFERENCES projects(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_goals_active ON goals(active);
+            CREATE INDEX IF NOT EXISTS idx_goals_type ON goals(goal_type);
+        "#);
+        tx.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '5')",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn migrate_v6(&self, conn: &Connection) -> Result<()> {
+        let tx = conn.unchecked_transaction()?;
+        let _ = tx.execute_batch(r#"
+            DELETE FROM rules
+            WHERE id NOT IN (
+                SELECT MIN(id)
+                FROM rules
+                GROUP BY rule_type, pattern, category_id
+            );
+        "#);
+        let _ = tx.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_rules_unique ON rules(rule_type, pattern, category_id)",
+            [],
+        );
+        tx.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '6')",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn migrate_v7(&self, conn: &Connection) -> Result<()> {
+        let tx = conn.unchecked_transaction()?;
+        let _ = tx.execute("ALTER TABLE categories ADD COLUMN is_system BOOLEAN DEFAULT FALSE", []);
+        let _ = tx.execute("ALTER TABLE categories ADD COLUMN is_pinned BOOLEAN DEFAULT FALSE", []);
+        let _ = tx.execute(
+            "UPDATE categories SET is_system = TRUE WHERE name IN ('Thinking', 'Break', 'Uncategorized')",
+            [],
+        );
+        let _ = tx.execute(
+            "UPDATE categories SET is_pinned = TRUE WHERE name IN ('Thinking', 'Break', 'Meetings', 'Communication', 'Personal')",
+            [],
+        );
+        let _ = tx.execute(
+            "INSERT OR IGNORE INTO categories (name, color, icon, is_productive, is_billable, hourly_rate, sort_order, is_system, is_pinned) 
+             VALUES ('Personal', '#9E9E9E', '🏠', FALSE, FALSE, 0.0, 9, FALSE, TRUE)",
+            [],
+        );
+        let thinking_id: Option<i64> = tx.query_row("SELECT id FROM categories WHERE name = 'Thinking'", [], |row| row.get(0)).ok();
+        let break_id: Option<i64> = tx.query_row("SELECT id FROM categories WHERE name = 'Break'", [], |row| row.get(0)).ok();
+        let meetings_id: Option<i64> = tx.query_row("SELECT id FROM categories WHERE name = 'Meetings'", [], |row| row.get(0)).ok();
+        let communication_id: Option<i64> = tx.query_row("SELECT id FROM categories WHERE name = 'Communication'", [], |row| row.get(0)).ok();
+        let personal_id: Option<i64> = tx.query_row("SELECT id FROM categories WHERE name = 'Personal'", [], |row| row.get(0)).ok();
+        if let Some(id) = thinking_id {
+            let _ = tx.execute(
+                "UPDATE manual_entries SET category_id = ? WHERE entry_type = 'thinking' AND category_id IS NULL",
+                params![id],
+            );
         }
-
-        // Migration 2: Add is_billable and hourly_rate to categories
-        if version < 2 {
-            let _ = conn.execute(
-                "ALTER TABLE categories ADD COLUMN is_billable BOOLEAN DEFAULT FALSE",
-                [],
+        if let Some(id) = break_id {
+            let _ = tx.execute(
+                "UPDATE manual_entries SET category_id = ? WHERE entry_type = 'break' AND category_id IS NULL",
+                params![id],
             );
-            let _ = conn.execute(
-                "ALTER TABLE categories ADD COLUMN hourly_rate REAL DEFAULT 0.0",
-                [],
-            );
-            conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '2')",
-                [],
-            )?;
         }
-
-        // Migration 3: Create projects and tasks tables, add project_id/task_id to activities and manual_entries
-        if version < 3 {
-            // Create projects table if it doesn't exist
-            let _ = conn.execute_batch(r#"
-                CREATE TABLE IF NOT EXISTS projects (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    client_name TEXT,
-                    color TEXT DEFAULT '#888888',
-                    is_billable BOOLEAN DEFAULT FALSE,
-                    hourly_rate REAL DEFAULT 0.0,
-                    budget_hours REAL,
-                    created_at INTEGER NOT NULL,
-                    archived BOOLEAN DEFAULT FALSE
-                );
-                CREATE INDEX IF NOT EXISTS idx_projects_archived ON projects(archived);
-            "#);
-
-            // Create tasks table if it doesn't exist
-            let _ = conn.execute_batch(r#"
-                CREATE TABLE IF NOT EXISTS tasks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    project_id INTEGER NOT NULL,
-                    name TEXT NOT NULL,
-                    description TEXT,
-                    created_at INTEGER NOT NULL,
-                    archived BOOLEAN DEFAULT FALSE,
-                    FOREIGN KEY (project_id) REFERENCES projects(id)
-                );
-                CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
-                CREATE INDEX IF NOT EXISTS idx_tasks_archived ON tasks(archived);
-            "#);
-
-            // Add project_id and task_id to activities
-            let _ = conn.execute(
-                "ALTER TABLE activities ADD COLUMN project_id INTEGER",
-                [],
+        if let Some(id) = meetings_id {
+            let _ = tx.execute(
+                "UPDATE manual_entries SET category_id = ? WHERE entry_type = 'meeting' AND category_id IS NULL",
+                params![id],
             );
-            let _ = conn.execute(
-                "ALTER TABLE activities ADD COLUMN task_id INTEGER",
-                [],
-            );
-
-            // Add project_id and task_id to manual_entries
-            let _ = conn.execute(
-                "ALTER TABLE manual_entries ADD COLUMN project_id INTEGER",
-                [],
-            );
-            let _ = conn.execute(
-                "ALTER TABLE manual_entries ADD COLUMN task_id INTEGER",
-                [],
-            );
-
-            // Create indexes
-            let _ = conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_activities_domain ON activities(domain)",
-                [],
-            );
-            let _ = conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_activities_project ON activities(project_id)",
-                [],
-            );
-
-            conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '3')",
-                [],
-            )?;
         }
-
-        // Migration 4: Create focus_sessions table
-        if version < 4 {
-            let _ = conn.execute_batch(r#"
-                CREATE TABLE IF NOT EXISTS focus_sessions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    started_at INTEGER NOT NULL,
-                    ended_at INTEGER,
-                    duration_sec INTEGER,
-                    pomodoro_type TEXT DEFAULT 'work',
-                    project_id INTEGER,
-                    task_id INTEGER,
-                    completed BOOLEAN DEFAULT FALSE,
-                    FOREIGN KEY (project_id) REFERENCES projects(id),
-                    FOREIGN KEY (task_id) REFERENCES tasks(id)
-                );
-                CREATE INDEX IF NOT EXISTS idx_focus_sessions_started ON focus_sessions(started_at);
-            "#);
-            conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '4')",
-                [],
-            )?;
+        if let Some(id) = communication_id {
+            let _ = tx.execute(
+                "UPDATE manual_entries SET category_id = ? WHERE entry_type = 'call' AND category_id IS NULL",
+                params![id],
+            );
         }
-
-        // Migration 5: Create goals table
-        if version < 5 {
-            let _ = conn.execute_batch(r#"
-                CREATE TABLE IF NOT EXISTS goals (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    goal_type TEXT NOT NULL,
-                    target_seconds INTEGER NOT NULL,
-                    category_id INTEGER,
-                    project_id INTEGER,
-                    start_date INTEGER NOT NULL,
-                    end_date INTEGER,
-                    created_at INTEGER NOT NULL,
-                    active BOOLEAN DEFAULT TRUE,
-                    FOREIGN KEY (category_id) REFERENCES categories(id),
-                    FOREIGN KEY (project_id) REFERENCES projects(id)
-                );
-                CREATE INDEX IF NOT EXISTS idx_goals_active ON goals(active);
-                CREATE INDEX IF NOT EXISTS idx_goals_type ON goals(goal_type);
-            "#);
-            conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '5')",
-                [],
-            )?;
+        if let Some(id) = personal_id {
+            let _ = tx.execute(
+                "UPDATE manual_entries SET category_id = ? WHERE entry_type = 'personal' AND category_id IS NULL",
+                params![id],
+            );
         }
+        tx.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '7')",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
 
-        // Migration 6: Add unique constraint to rules table to prevent duplicates
-        if version < 6 {
-            // First, remove duplicate rules keeping only the first occurrence
-            let _ = conn.execute_batch(r#"
-                DELETE FROM rules
-                WHERE id NOT IN (
-                    SELECT MIN(id)
-                    FROM rules
-                    GROUP BY rule_type, pattern, category_id
-                );
-            "#);
-            
-            // Create unique index on (rule_type, pattern, category_id)
-            let _ = conn.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_rules_unique ON rules(rule_type, pattern, category_id)",
-                [],
-            );
-            
-            conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '6')",
-                [],
-            )?;
-        }
+    fn migrate_v8(&self, conn: &Connection) -> Result<()> {
+        let tx = conn.unchecked_transaction()?;
+        let _ = tx.execute("ALTER TABLE categories ADD COLUMN project_id INTEGER", []);
+        let _ = tx.execute("ALTER TABLE categories ADD COLUMN task_id INTEGER", []);
+        let _ = tx.execute("CREATE INDEX IF NOT EXISTS idx_categories_project ON categories(project_id)", []);
+        let _ = tx.execute("CREATE INDEX IF NOT EXISTS idx_categories_task ON categories(task_id)", []);
+        tx.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '8')",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
 
-        // Migration 7: Add is_system and is_pinned fields to categories, migrate manual_entries
-        if version < 7 {
-            // Add new columns
-            let _ = conn.execute(
-                "ALTER TABLE categories ADD COLUMN is_system BOOLEAN DEFAULT FALSE",
-                [],
-            );
-            let _ = conn.execute(
-                "ALTER TABLE categories ADD COLUMN is_pinned BOOLEAN DEFAULT FALSE",
-                [],
-            );
-            
-            // Mark Thinking, Break, and Uncategorized as system categories
-            let _ = conn.execute(
-                "UPDATE categories SET is_system = TRUE WHERE name IN ('Thinking', 'Break', 'Uncategorized')",
-                [],
-            );
-            
-            // Mark categories as pinned for quick access in UI
-            let _ = conn.execute(
-                "UPDATE categories SET is_pinned = TRUE WHERE name IN ('Thinking', 'Break', 'Meetings', 'Communication', 'Personal')",
-                [],
-            );
-            
-            // Create Personal category if it doesn't exist and mark as pinned
-            let _ = conn.execute(
-                "INSERT OR IGNORE INTO categories (name, color, icon, is_productive, is_billable, hourly_rate, sort_order, is_system, is_pinned) 
-                 VALUES ('Personal', '#9E9E9E', '🏠', FALSE, FALSE, 0.0, 9, FALSE, TRUE)",
-                [],
-            );
-            
-            // Migrate manual_entries: map entry_type to category_id
-            // Get category IDs
-            let thinking_id: Option<i64> = conn.query_row(
-                "SELECT id FROM categories WHERE name = 'Thinking'",
-                [],
-                |row| row.get(0),
-            ).ok();
-            
-            let break_id: Option<i64> = conn.query_row(
-                "SELECT id FROM categories WHERE name = 'Break'",
-                [],
-                |row| row.get(0),
-            ).ok();
-            
-            let meetings_id: Option<i64> = conn.query_row(
-                "SELECT id FROM categories WHERE name = 'Meetings'",
-                [],
-                |row| row.get(0),
-            ).ok();
-            
-            let communication_id: Option<i64> = conn.query_row(
-                "SELECT id FROM categories WHERE name = 'Communication'",
-                [],
-                |row| row.get(0),
-            ).ok();
-            
-            let personal_id: Option<i64> = conn.query_row(
-                "SELECT id FROM categories WHERE name = 'Personal'",
-                [],
-                |row| row.get(0),
-            ).ok();
-            
-            // Update manual_entries based on entry_type
-            if let Some(id) = thinking_id {
-                let _ = conn.execute(
-                    "UPDATE manual_entries SET category_id = ? WHERE entry_type = 'thinking' AND category_id IS NULL",
-                    params![id],
+    fn migrate_v9(&self, conn: &Connection) -> Result<()> {
+        let tx = conn.unchecked_transaction()?;
+        let _ = tx.execute("ALTER TABLE goals ADD COLUMN name TEXT", []);
+        tx.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '9')",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn migrate_v10(&self, conn: &Connection) -> Result<()> {
+        let tx = conn.unchecked_transaction()?;
+        let uncategorized_id: Option<i64> = tx.query_row(
+            "SELECT id FROM categories WHERE name = 'Uncategorized' AND is_system = TRUE",
+            [],
+            |row| row.get(0),
+        ).ok();
+        let break_id: Option<i64> = tx.query_row(
+            "SELECT id FROM categories WHERE name = 'Break' AND is_system = TRUE",
+            [],
+            |row| row.get(0),
+        ).ok();
+        let thinking_id: Option<i64> = tx.query_row(
+            "SELECT id FROM categories WHERE name = 'Thinking' AND is_system = TRUE",
+            [],
+            |row| row.get(0),
+        ).ok();
+        if let Some(old_id) = uncategorized_id {
+            if old_id != SYSTEM_CATEGORY_UNCATEGORIZED {
+                let _ = tx.execute(
+                    "UPDATE activities SET category_id = ? WHERE category_id = ?",
+                    params![SYSTEM_CATEGORY_UNCATEGORIZED, old_id],
                 );
+                let _ = tx.execute(
+                    "UPDATE manual_entries SET category_id = ? WHERE category_id = ?",
+                    params![SYSTEM_CATEGORY_UNCATEGORIZED, old_id],
+                );
+                let _ = tx.execute(
+                    "UPDATE rules SET category_id = ? WHERE category_id = ?",
+                    params![SYSTEM_CATEGORY_UNCATEGORIZED, old_id],
+                );
+                let _ = tx.execute(
+                    "UPDATE goals SET category_id = ? WHERE category_id = ?",
+                    params![SYSTEM_CATEGORY_UNCATEGORIZED, old_id],
+                );
+                let _ = tx.execute("DELETE FROM categories WHERE id = ?", params![old_id]);
             }
-            
-            if let Some(id) = break_id {
-                let _ = conn.execute(
-                    "UPDATE manual_entries SET category_id = ? WHERE entry_type = 'break' AND category_id IS NULL",
-                    params![id],
-                );
-            }
-            
-            if let Some(id) = meetings_id {
-                let _ = conn.execute(
-                    "UPDATE manual_entries SET category_id = ? WHERE entry_type = 'meeting' AND category_id IS NULL",
-                    params![id],
-                );
-            }
-            
-            if let Some(id) = communication_id {
-                let _ = conn.execute(
-                    "UPDATE manual_entries SET category_id = ? WHERE entry_type = 'call' AND category_id IS NULL",
-                    params![id],
-                );
-            }
-            
-            if let Some(id) = personal_id {
-                let _ = conn.execute(
-                    "UPDATE manual_entries SET category_id = ? WHERE entry_type = 'personal' AND category_id IS NULL",
-                    params![id],
-                );
-            }
-            
-            conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '7')",
-                [],
-            )?;
         }
-
-        // Migration 8: Add project_id and task_id to categories
-        if version < 8 {
-            let _ = conn.execute(
-                "ALTER TABLE categories ADD COLUMN project_id INTEGER",
-                [],
-            );
-            let _ = conn.execute(
-                "ALTER TABLE categories ADD COLUMN task_id INTEGER",
-                [],
-            );
-            
-            // Add foreign key constraints (SQLite doesn't support ALTER TABLE ADD CONSTRAINT,
-            // but we can create indexes for better performance)
-            let _ = conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_categories_project ON categories(project_id)",
-                [],
-            );
-            let _ = conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_categories_task ON categories(task_id)",
-                [],
-            );
-            
-            conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '8')",
-                [],
-            )?;
-        }
-
-        // Migration 9: Add name to goals
-        if version < 9 {
-            let _ = conn.execute(
-                "ALTER TABLE goals ADD COLUMN name TEXT",
-                [],
-            );
-            
-            conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '9')",
-                [],
-            )?;
-        }
-
-        // Migration 10: Assign negative IDs to system categories
-        if version < 10 {
-            // Get current IDs of system categories
-            let uncategorized_id: Option<i64> = conn.query_row(
-                "SELECT id FROM categories WHERE name = 'Uncategorized' AND is_system = TRUE",
-                [],
-                |row| row.get(0),
-            ).ok();
-            
-            let break_id: Option<i64> = conn.query_row(
-                "SELECT id FROM categories WHERE name = 'Break' AND is_system = TRUE",
-                [],
-                |row| row.get(0),
-            ).ok();
-            
-            let thinking_id: Option<i64> = conn.query_row(
-                "SELECT id FROM categories WHERE name = 'Thinking' AND is_system = TRUE",
-                [],
-                |row| row.get(0),
-            ).ok();
-            
-            // Update all foreign key references before deleting old categories
-            if let Some(old_id) = uncategorized_id {
-                if old_id != SYSTEM_CATEGORY_UNCATEGORIZED {
-                    let _ = conn.execute(
-                        "UPDATE activities SET category_id = ? WHERE category_id = ?",
-                        params![SYSTEM_CATEGORY_UNCATEGORIZED, old_id],
-                    );
-                    let _ = conn.execute(
-                        "UPDATE manual_entries SET category_id = ? WHERE category_id = ?",
-                        params![SYSTEM_CATEGORY_UNCATEGORIZED, old_id],
-                    );
-                    let _ = conn.execute(
-                        "UPDATE rules SET category_id = ? WHERE category_id = ?",
-                        params![SYSTEM_CATEGORY_UNCATEGORIZED, old_id],
-                    );
-                    let _ = conn.execute(
-                        "UPDATE goals SET category_id = ? WHERE category_id = ?",
-                        params![SYSTEM_CATEGORY_UNCATEGORIZED, old_id],
-                    );
-                    // Delete old category
-                    let _ = conn.execute(
-                        "DELETE FROM categories WHERE id = ?",
-                        params![old_id],
-                    );
-                }
+        if let Some(old_id) = break_id {
+            if old_id != SYSTEM_CATEGORY_BREAK {
+                let _ = tx.execute(
+                    "UPDATE activities SET category_id = ? WHERE category_id = ?",
+                    params![SYSTEM_CATEGORY_BREAK, old_id],
+                );
+                let _ = tx.execute(
+                    "UPDATE manual_entries SET category_id = ? WHERE category_id = ?",
+                    params![SYSTEM_CATEGORY_BREAK, old_id],
+                );
+                let _ = tx.execute(
+                    "UPDATE rules SET category_id = ? WHERE category_id = ?",
+                    params![SYSTEM_CATEGORY_BREAK, old_id],
+                );
+                let _ = tx.execute(
+                    "UPDATE goals SET category_id = ? WHERE category_id = ?",
+                    params![SYSTEM_CATEGORY_BREAK, old_id],
+                );
+                let _ = tx.execute("DELETE FROM categories WHERE id = ?", params![old_id]);
             }
-            
-            if let Some(old_id) = break_id {
-                if old_id != SYSTEM_CATEGORY_BREAK {
-                    let _ = conn.execute(
-                        "UPDATE activities SET category_id = ? WHERE category_id = ?",
-                        params![SYSTEM_CATEGORY_BREAK, old_id],
-                    );
-                    let _ = conn.execute(
-                        "UPDATE manual_entries SET category_id = ? WHERE category_id = ?",
-                        params![SYSTEM_CATEGORY_BREAK, old_id],
-                    );
-                    let _ = conn.execute(
-                        "UPDATE rules SET category_id = ? WHERE category_id = ?",
-                        params![SYSTEM_CATEGORY_BREAK, old_id],
-                    );
-                    let _ = conn.execute(
-                        "UPDATE goals SET category_id = ? WHERE category_id = ?",
-                        params![SYSTEM_CATEGORY_BREAK, old_id],
-                    );
-                    // Delete old category
-                    let _ = conn.execute(
-                        "DELETE FROM categories WHERE id = ?",
-                        params![old_id],
-                    );
-                }
-            }
-            
-            if let Some(old_id) = thinking_id {
-                if old_id != SYSTEM_CATEGORY_THINKING {
-                    let _ = conn.execute(
-                        "UPDATE activities SET category_id = ? WHERE category_id = ?",
-                        params![SYSTEM_CATEGORY_THINKING, old_id],
-                    );
-                    let _ = conn.execute(
-                        "UPDATE manual_entries SET category_id = ? WHERE category_id = ?",
-                        params![SYSTEM_CATEGORY_THINKING, old_id],
-                    );
-                    let _ = conn.execute(
-                        "UPDATE rules SET category_id = ? WHERE category_id = ?",
-                        params![SYSTEM_CATEGORY_THINKING, old_id],
-                    );
-                    let _ = conn.execute(
-                        "UPDATE goals SET category_id = ? WHERE category_id = ?",
-                        params![SYSTEM_CATEGORY_THINKING, old_id],
-                    );
-                    // Delete old category
-                    let _ = conn.execute(
-                        "DELETE FROM categories WHERE id = ?",
-                        params![old_id],
-                    );
-                }
-            }
-            
-            // Insert system categories with negative IDs if they don't exist
-            conn.execute_batch(r#"
-                INSERT OR IGNORE INTO categories (id, name, color, icon, is_productive, sort_order, is_system, is_pinned) VALUES
-                    (-1, 'Uncategorized', '#9E9E9E', '❓', NULL, 8, TRUE, FALSE),
-                    (-2, 'Break', '#795548', '☕', FALSE, 7, TRUE, TRUE),
-                    (-3, 'Thinking', '#00BCD4', '🧠', TRUE, 6, TRUE, TRUE);
-            "#)?;
-            
-            conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '10')",
-                [],
-            )?;
         }
-
+        if let Some(old_id) = thinking_id {
+            if old_id != SYSTEM_CATEGORY_THINKING {
+                let _ = tx.execute(
+                    "UPDATE activities SET category_id = ? WHERE category_id = ?",
+                    params![SYSTEM_CATEGORY_THINKING, old_id],
+                );
+                let _ = tx.execute(
+                    "UPDATE manual_entries SET category_id = ? WHERE category_id = ?",
+                    params![SYSTEM_CATEGORY_THINKING, old_id],
+                );
+                let _ = tx.execute(
+                    "UPDATE rules SET category_id = ? WHERE category_id = ?",
+                    params![SYSTEM_CATEGORY_THINKING, old_id],
+                );
+                let _ = tx.execute(
+                    "UPDATE goals SET category_id = ? WHERE category_id = ?",
+                    params![SYSTEM_CATEGORY_THINKING, old_id],
+                );
+                let _ = tx.execute("DELETE FROM categories WHERE id = ?", params![old_id]);
+            }
+        }
+        tx.execute_batch(r#"
+            INSERT OR IGNORE INTO categories (id, name, color, icon, is_productive, sort_order, is_system, is_pinned) VALUES
+                (-1, 'Uncategorized', '#9E9E9E', '❓', NULL, 8, TRUE, FALSE),
+                (-2, 'Break', '#795548', '☕', FALSE, 7, TRUE, TRUE),
+                (-3, 'Thinking', '#00BCD4', '🧠', TRUE, 6, TRUE, TRUE);
+        "#)?;
+        tx.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '10')",
+            [],
+        )?;
+        tx.commit()?;
         Ok(())
     }
 
