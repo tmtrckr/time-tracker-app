@@ -62,8 +62,20 @@ const updateSplashStatus = (status: string) => {
   }
 };
 
+// Fallback: hide splash screen after max 8 seconds (in case something goes wrong)
+let maxSplashTime: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+  console.warn('Splash screen timeout - forcing hide');
+  hideSplashScreen();
+}, 8000);
+
 // Hide splash screen and show app when React is ready
 const hideSplashScreen = () => {
+  // Clear fallback timeout if splash screen hides normally
+  if (maxSplashTime) {
+    clearTimeout(maxSplashTime);
+    maxSplashTime = null;
+  }
+  
   // Stop loading timer
   if ((window as any).stopLoadingTimer) {
     (window as any).stopLoadingTimer();
@@ -84,12 +96,6 @@ const hideSplashScreen = () => {
     root.classList.add('loaded');
   }
 };
-
-// Fallback: hide splash screen after max 8 seconds (in case something goes wrong)
-const maxSplashTime = setTimeout(() => {
-  console.warn('Splash screen timeout - forcing hide');
-  hideSplashScreen();
-}, 8000);
 
 // Make updateSplashStatus and hideSplashScreen available globally for App.tsx
 (window as any).updateSplashStatus = updateSplashStatus;
