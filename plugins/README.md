@@ -4,22 +4,21 @@ This directory contains built-in plugins that will eventually be moved to separa
 
 ## Current Status
 
-Plugins are currently being restructured from `backend/src/plugins/` into self-contained directories here. Each plugin has:
+All 4 plugins have been successfully extracted into self-contained directories:
 
+- `projects-tasks/` - Projects and Tasks management
+- `billing/` - Billable time tracking  
+- `pomodoro/` - Pomodoro timer and focus sessions
+- `goals/` - Goal tracking
+
+Each plugin has:
 - `Cargo.toml` - Plugin crate configuration (cdylib for dynamic loading)
 - `plugin.toml` - Plugin manifest
-- `src/lib.rs` - Plugin implementation with FFI exports
-- `frontend/` - Frontend components and hooks (to be moved)
+- `src/lib.rs` - Plugin implementation with FFI exports (`_plugin_create`, `_plugin_destroy`)
 
-## Known Issues
+## Database Access
 
-**Database Dependency**: Plugins currently depend on `Database` directly from the backend crate. For true dynamic loading, this needs to be refactored:
-
-1. Option A: Extend `PluginAPI` to provide database access methods
-2. Option B: Create a shared database types crate that both core and plugins can use
-3. Option C: Plugins use PluginAPI methods only (requires extending PluginAPI significantly)
-
-For now, plugins work as workspace members but need refactoring before they can be true dynamic libraries.
+✅ **RESOLVED**: Plugins now use `PluginAPIInterface.call_db_method()` for database access, eliminating direct Database dependencies. This enables true dynamic loading.
 
 ## Migration Path
 
