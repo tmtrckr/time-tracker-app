@@ -79,10 +79,18 @@ pub struct ModelField {
 pub type QueryFilterFn = Box<dyn Fn(Vec<serde_json::Value>, std::collections::HashMap<String, serde_json::Value>) -> Result<Vec<serde_json::Value>, String> + Send + Sync>;
 
 /// Query filter
-#[derive(Debug)]
 pub struct QueryFilter {
     pub name: String,
     pub filter_fn: QueryFilterFn,
+}
+
+impl std::fmt::Debug for QueryFilter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("QueryFilter")
+            .field("name", &self.name)
+            .field("filter_fn", &"<function>")
+            .finish()
+    }
 }
 
 /// Schema extension definition (used by plugins to declare their schema)

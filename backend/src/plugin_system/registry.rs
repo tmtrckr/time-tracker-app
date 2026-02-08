@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use crate::database::Database;
 use crate::plugin_system::api::PluginAPI;
-use time_tracker_plugin_sdk::{Plugin, PluginInfo};
+use time_tracker_plugin_sdk::Plugin;
 
 // Re-export SDK types for convenience
 pub use time_tracker_plugin_sdk::{Plugin as PluginTrait, PluginInfo};

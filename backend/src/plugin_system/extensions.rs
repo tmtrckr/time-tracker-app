@@ -3,9 +3,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use crate::database::{Database, Activity};
-use time_tracker_plugin_sdk::{
-    EntityType, ExtensionType, SchemaChange, ModelField, QueryFilter as SDKQueryFilter, ForeignKey
-};
+use time_tracker_plugin_sdk::QueryFilter as SDKQueryFilter;
 
 // Re-export SDK types for convenience
 pub use time_tracker_plugin_sdk::{EntityType, ExtensionType, SchemaChange, ModelField, ForeignKey};

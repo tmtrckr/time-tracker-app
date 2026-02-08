@@ -81,7 +81,7 @@ fn load_builtin_plugins(
     
     // Load Pomodoro Plugin
     if db.is_plugin_installed("pomodoro-plugin")? {
-        let mut plugin = PomodoroPlugin::new(Arc::clone(db));
+        let mut plugin = PomodoroPlugin::new();
         let api = PluginAPI::new(Arc::clone(db), Arc::clone(extension_registry), "pomodoro-plugin".to_string());
         plugin.initialize(&api as &dyn PluginAPIInterface)?;
         plugin_registry.register(Box::new(plugin))?;

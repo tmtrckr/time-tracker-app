@@ -1,9 +1,16 @@
 //! Plugin API - interface for plugins to interact with Core
 
 use crate::database::Database;
-use crate::plugin_system::extensions::{ExtensionRegistry, Extension, ExtensionType, EntityType, SchemaChange, ModelField, ActivityHook, QueryFilter};
+use crate::plugin_system::extensions::{ExtensionRegistry, Extension, ActivityHook, QueryFilter};
 use std::sync::Arc;
-use time_tracker_plugin_sdk::{PluginAPIInterface, EntityType as SDKEntityType, SchemaChange as SDKSchemaChange, ModelField as SDKModelField, QueryFilter as SDKQueryFilter};
+use time_tracker_plugin_sdk::{
+    PluginAPIInterface, 
+    EntityType, ExtensionType, SchemaChange, ModelField,
+    EntityType as SDKEntityType, 
+    SchemaChange as SDKSchemaChange, 
+    ModelField as SDKModelField, 
+    QueryFilter as SDKQueryFilter
+};
 
 /// Plugin API provides plugins with access to Core functionality
 pub struct PluginAPI {
@@ -403,7 +410,7 @@ impl PluginAPIInterface for PluginAPI {
                 let project_id = params["project_id"].as_i64();
                 let start_date = params["start_date"].as_i64().ok_or("Missing start_date")?;
                 let end_date = params["end_date"].as_i64();
-                let active = params["active"].as_bool();
+                let active = params["active"].as_bool().unwrap_or(true);
                 let name = params["name"].as_str().map(|s| s.to_string());
                 
                 self.db.update_goal(
