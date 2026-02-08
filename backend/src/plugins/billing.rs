@@ -2,19 +2,15 @@
 //! 
 //! Manages billable time tracking, extends categories with is_billable and hourly_rate fields
 
-use crate::database::Database;
-use crate::plugin_system::PluginAPI;
 use time_tracker_plugin_sdk::{Plugin, PluginInfo, PluginAPIInterface, EntityType, SchemaChange, ModelField};
-use std::sync::Arc;
 use serde_json;
 
 pub struct BillingPlugin {
     info: PluginInfo,
-    db: Arc<Database>,
 }
 
 impl BillingPlugin {
-    pub fn new(db: Arc<Database>) -> Self {
+    pub fn new() -> Self {
         Self {
             info: PluginInfo {
                 id: "billing-plugin".to_string(),
@@ -23,7 +19,6 @@ impl BillingPlugin {
                 description: Some("Billable time tracking".to_string()),
                 is_builtin: true,
             },
-            db,
         }
     }
 }
@@ -75,24 +70,10 @@ impl Plugin for BillingPlugin {
         Ok(())
     }
     
-    fn invoke_command(&self, command: &str, params: serde_json::Value) -> Result<serde_json::Value, String> {
+    fn invoke_command(&self, command: &str, params: serde_json::Value, api: &dyn PluginAPIInterface) -> Result<serde_json::Value, String> {
         match command {
-            "get_billable_hours" => {
-                let start = params["start"].as_i64().ok_or("Missing start")?;
-                let end = params["end"].as_i64().ok_or("Missing end")?;
-                let hours = self.db.get_billable_hours(start, end)
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::json!(hours))
-            }
-            
-            "get_billable_revenue" => {
-                let start = params["start"].as_i64().ok_or("Missing start")?;
-                let end = params["end"].as_i64().ok_or("Missing end")?;
-                let revenue = self.db.get_billable_revenue(start, end)
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::json!(revenue))
-            }
-            
+            "get_billable_hours" => api.call_db_method("get_billable_hours", params),
+            "get_billable_revenue" => api.call_db_method("get_billable_revenue", params),
             _ => Err(format!("Unknown command: {}", command)),
         }
     }

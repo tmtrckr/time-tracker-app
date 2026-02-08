@@ -21,7 +21,8 @@ pub trait Plugin: Send + Sync {
     fn initialize(&mut self, api: &dyn crate::api::PluginAPIInterface) -> Result<(), String>;
     
     /// Invoke a command on the plugin
-    fn invoke_command(&self, command: &str, params: serde_json::Value) -> Result<serde_json::Value, String>;
+    /// The api parameter provides database access and other core functionality
+    fn invoke_command(&self, command: &str, params: serde_json::Value, api: &dyn crate::api::PluginAPIInterface) -> Result<serde_json::Value, String>;
     
     /// Shutdown the plugin
     fn shutdown(&self) -> Result<(), String>;

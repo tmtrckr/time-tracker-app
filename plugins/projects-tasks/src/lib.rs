@@ -4,16 +4,9 @@
 
 use time_tracker_plugin_sdk::{Plugin, PluginInfo, PluginAPIInterface, EntityType, SchemaChange, ModelField, ForeignKey, SchemaExtension};
 use serde_json;
-use std::sync::Arc;
-
-// Note: This plugin currently depends on Database directly, which won't work for dynamic loading
-// TODO: Refactor to use PluginAPI methods only, or extend PluginAPI to provide database access
-// For now, this works as a workspace member but needs refactoring for true dynamic loading
-use time_tracker_app::database::Database;
 
 pub struct ProjectsTasksPlugin {
     info: PluginInfo,
-    db: Option<Arc<Database>>, // Will be None for dynamic plugins, set via initialize
 }
 
 impl ProjectsTasksPlugin {
@@ -26,7 +19,6 @@ impl ProjectsTasksPlugin {
                 description: Some("Project and task management".to_string()),
                 is_builtin: false,
             },
-            db: None,
         }
     }
 }
@@ -275,10 +267,20 @@ impl Plugin for ProjectsTasksPlugin {
         Ok(())
     }
     
-    fn invoke_command(&self, command: &str, params: serde_json::Value) -> Result<serde_json::Value, String> {
-        // TODO: This needs to use PluginAPI methods instead of Database directly
-        // For now, return error indicating this needs refactoring
-        Err(format!("Plugin commands not yet implemented - needs PluginAPI database access methods. Command: {}", command))
+    fn invoke_command(&self, command: &str, params: serde_json::Value, api: &dyn PluginAPIInterface) -> Result<serde_json::Value, String> {
+        match command {
+            "create_project" => api.call_db_method("create_project", params),
+            "get_projects" => api.call_db_method("get_projects", params),
+            "get_project_by_id" => api.call_db_method("get_project_by_id", params),
+            "update_project" => api.call_db_method("update_project", params),
+            "delete_project" => api.call_db_method("delete_project", params),
+            "create_task" => api.call_db_method("create_task", params),
+            "get_tasks" => api.call_db_method("get_tasks", params),
+            "get_task_by_id" => api.call_db_method("get_task_by_id", params),
+            "update_task" => api.call_db_method("update_task", params),
+            "delete_task" => api.call_db_method("delete_task", params),
+            _ => Err(format!("Unknown command: {}", command)),
+        }
     }
     
     fn shutdown(&self) -> Result<(), String> {

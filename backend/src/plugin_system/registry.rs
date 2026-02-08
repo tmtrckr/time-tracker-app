@@ -52,11 +52,17 @@ impl PluginRegistry {
     }
     
     /// Invoke a command on a plugin
-    pub fn invoke_plugin_command(&self, plugin_id: &str, command: &str, params: serde_json::Value) -> Result<serde_json::Value, String> {
+    pub fn invoke_plugin_command(
+        &self, 
+        plugin_id: &str, 
+        command: &str, 
+        params: serde_json::Value,
+        api: &dyn time_tracker_plugin_sdk::PluginAPIInterface,
+    ) -> Result<serde_json::Value, String> {
         let plugins = self.plugins.lock().map_err(|e| format!("Failed to lock plugin registry: {}", e))?;
         
         if let Some(plugin) = plugins.get(plugin_id) {
-            plugin.invoke_command(command, params)
+            plugin.invoke_command(command, params, api)
         } else {
             Err(format!("Plugin {} not found", plugin_id))
         }

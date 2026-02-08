@@ -63,7 +63,7 @@ fn load_builtin_plugins(
     
     // Load Projects/Tasks Plugin
     if db.is_plugin_installed("projects-tasks-plugin")? {
-        let mut plugin = ProjectsTasksPlugin::new(Arc::clone(db));
+        let mut plugin = ProjectsTasksPlugin::new();
         let api = PluginAPI::new(Arc::clone(db), Arc::clone(extension_registry), "projects-tasks-plugin".to_string());
         plugin.initialize(&api as &dyn PluginAPIInterface)?;
         plugin_registry.register(Box::new(plugin))?;
@@ -72,7 +72,7 @@ fn load_builtin_plugins(
     
     // Load Billing Plugin
     if db.is_plugin_installed("billing-plugin")? {
-        let mut plugin = BillingPlugin::new(Arc::clone(db));
+        let mut plugin = BillingPlugin::new();
         let api = PluginAPI::new(Arc::clone(db), Arc::clone(extension_registry), "billing-plugin".to_string());
         plugin.initialize(&api as &dyn PluginAPIInterface)?;
         plugin_registry.register(Box::new(plugin))?;
@@ -90,7 +90,7 @@ fn load_builtin_plugins(
     
     // Load Goals Plugin
     if db.is_plugin_installed("goals-plugin")? {
-        let mut plugin = GoalsPlugin::new(Arc::clone(db));
+        let mut plugin = GoalsPlugin::new();
         let api = PluginAPI::new(Arc::clone(db), Arc::clone(extension_registry), "goals-plugin".to_string());
         plugin.initialize(&api as &dyn PluginAPIInterface)?;
         plugin_registry.register(Box::new(plugin))?;
@@ -170,6 +170,7 @@ fn main() {
         active_project_id: Arc::new(Mutex::new(None)),
         active_task_id: Arc::new(Mutex::new(None)),
         plugin_registry: Some(Arc::clone(&plugin_registry)),
+        extension_registry: Some(Arc::clone(&extension_registry)),
     };
 
     // Build Tauri application
