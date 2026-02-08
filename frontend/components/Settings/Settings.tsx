@@ -209,6 +209,7 @@ const Settings: React.FC<SettingsProps> = () => {
         autostart: localSettings.autoStart ?? localSettings.autostart ?? false,
         minimize_to_tray: ('minimizeToTray' in localSettings ? (localSettings as SettingsType & { minimizeToTray?: boolean }).minimizeToTray : undefined) ?? localSettings.minimize_to_tray ?? false,
         show_notifications: ('showNotifications' in localSettings ? (localSettings as SettingsType & { showNotifications?: boolean }).showNotifications : undefined) ?? localSettings.show_notifications ?? true,
+        enable_marketplace: localSettings.enable_marketplace ?? false,
         date_format: localSettings.date_format || 'YYYY-MM-DD',
         time_format: localSettings.time_format || '24h',
         pomodoro_work_duration_minutes: Math.floor(pomodoroWorkSec / 60),
@@ -236,6 +237,7 @@ const Settings: React.FC<SettingsProps> = () => {
         autoStart: updated.autostart,
         minimize_to_tray: updated.minimize_to_tray,
         show_notifications: updated.show_notifications,
+        enable_marketplace: updated.enable_marketplace ?? false,
         pollingInterval: localSettings.pollingInterval ?? currentSettings.pollingInterval ?? 5,
         startMinimized: localSettings.startMinimized ?? currentSettings.startMinimized ?? false,
         showInTray: localSettings.showInTray ?? currentSettings.showInTray ?? true,
@@ -269,6 +271,9 @@ const Settings: React.FC<SettingsProps> = () => {
       } else {
         htmlElement.classList.remove('dark');
       }
+      
+      // Invalidate settings query to update Sidebar and other components
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
       
       const { showSuccess } = await import('../../utils/toast');
       showSuccess('Settings saved successfully');
@@ -343,6 +348,17 @@ const Settings: React.FC<SettingsProps> = () => {
             }}
             label="Dark Theme"
             description="Use dark appearance"
+          />
+          
+          <Toggle
+            checked={localSettings.enable_marketplace ?? false}
+            onChange={(checked) => {
+              handleSettingChange('enable_marketplace', checked);
+              // Update store immediately for instant feedback in Sidebar
+              setSettings({ ...localSettings, enable_marketplace: checked });
+            }}
+            label="Marketplace"
+            description="Show plugin marketplace in navigation"
           />
         </div>
       </div>

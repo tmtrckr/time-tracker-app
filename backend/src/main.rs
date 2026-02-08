@@ -252,6 +252,17 @@ fn main() {
             commands::delete_goal,
             commands::get_goal_progress,
             commands::check_goal_alerts,
+            // Plugin commands
+            commands::get_plugin_registry,
+            commands::search_plugins,
+            commands::get_plugin_info,
+            commands::discover_plugin,
+            commands::install_plugin,
+            commands::list_installed_plugins,
+            commands::uninstall_plugin,
+            commands::enable_plugin,
+            commands::disable_plugin,
+            commands::load_plugin,
         ])
         .setup(move |app| {
             let app_handle = app.handle();

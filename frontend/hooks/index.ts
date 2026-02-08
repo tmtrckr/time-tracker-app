@@ -10,3 +10,5 @@ export { useGoals, useGoalProgress, useGoalAlerts } from './useGoals';
 export { usePomodoro } from './usePomodoro';
 export { useFocusSessions } from './useFocusSessions';
 export { useDeleteFocusSession } from './useDeleteFocusSession';
+export { usePlugins } from './usePlugins';
+export { usePluginRegistry } from './usePluginRegistry';

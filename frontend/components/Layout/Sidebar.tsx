@@ -4,6 +4,7 @@ import {
   Settings, 
   Timer,
   FileText,
+  Package,
   X
 } from 'lucide-react';
 import { useStore } from '../../store';
@@ -11,10 +12,11 @@ import { formatDuration } from '../../utils';
 import { useTodayTotal } from '../../hooks';
 import { usePomodoro } from '../../hooks/usePomodoro';
 import { formatTimerTime } from '../../utils/format';
+import { useSettings } from '../../hooks/useSettings';
 
 interface SidebarProps {
   currentView: string;
-  onNavigate: (view: 'dashboard' | 'history' | 'reports' | 'settings' | 'pomodoro') => void;
+  onNavigate: (view: 'dashboard' | 'history' | 'reports' | 'settings' | 'pomodoro' | 'marketplace') => void;
   onClose?: () => void;
 }
 
@@ -23,6 +25,7 @@ const navItems = [
   { id: 'history', label: 'History', icon: History },
   { id: 'reports', label: 'Reports', icon: FileText },
   { id: 'pomodoro', label: 'Pomodoro', icon: Timer },
+  { id: 'marketplace', label: 'Marketplace', icon: Package },
   { id: 'settings', label: 'Settings', icon: Settings },
 ] as const;
 
@@ -31,6 +34,10 @@ export default function Sidebar({ currentView, onNavigate, onClose }: SidebarPro
   const isThinkingMode = useStore((state) => state.isThinkingMode);
   const { data: todayTotal = 0, isLoading: isLoadingTodayTotal } = useTodayTotal();
   const { status: pomodoroStatus, pausePomodoro, resumePomodoro } = usePomodoro();
+  // Use settings from store for immediate updates, fallback to useSettings query
+  const storeSettings = useStore((state) => state.settings);
+  const { settings: querySettings } = useSettings();
+  const enableMarketplace = storeSettings.enable_marketplace ?? querySettings?.enable_marketplace ?? false;
 
   return (
     <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
@@ -79,7 +86,13 @@ export default function Sidebar({ currentView, onNavigate, onClose }: SidebarPro
       {/* Navigation */}
       <nav className="flex-1 p-3 sm:p-4 overflow-y-auto">
         <ul className="space-y-1 sm:space-y-2">
-          {navItems.map((item) => {
+          {navItems.filter((item) => {
+            // Hide marketplace if disabled in settings
+            if (item.id === 'marketplace' && !enableMarketplace) {
+              return false;
+            }
+            return true;
+          }).map((item) => {
             const Icon = item.icon;
             const isActive = currentView === item.id;
             const isPomodoroItem = item.id === 'pomodoro';

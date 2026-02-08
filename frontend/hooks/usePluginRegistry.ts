@@ -1,0 +1,77 @@
+import { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/tauri';
+import type { RegistryPlugin, PluginManifest } from '../types/plugin';
+import { handleApiError } from '../utils/toast';
+
+export function usePluginRegistry() {
+  const [plugins, setPlugins] = useState<RegistryPlugin[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchRegistry = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const result = await invoke<RegistryPlugin[]>('get_plugin_registry');
+      setPlugins(result);
+    } catch (err) {
+      const errorMessage = handleApiError(err, 'Failed to load plugin registry');
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRegistry();
+  }, []);
+
+  const searchPlugins = async (query: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      if (query.trim()) {
+        const result = await invoke<RegistryPlugin[]>('search_plugins', { query });
+        setPlugins(result);
+      } else {
+        // Reset to full registry
+        await fetchRegistry();
+      }
+    } catch (err) {
+      const errorMessage = handleApiError(err, 'Failed to search plugins');
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getPluginInfo = async (repositoryUrl: string): Promise<PluginManifest | null> => {
+    try {
+      const result = await invoke<PluginManifest>('get_plugin_info', { repositoryUrl });
+      return result;
+    } catch (err) {
+      handleApiError(err, 'Failed to get plugin info');
+      return null;
+    }
+  };
+
+  const discoverPlugin = async (repositoryUrl: string): Promise<RegistryPlugin | null> => {
+    try {
+      const result = await invoke<RegistryPlugin>('discover_plugin', { repositoryUrl });
+      return result;
+    } catch (err) {
+      handleApiError(err, 'Failed to discover plugin');
+      return null;
+    }
+  };
+
+  return {
+    plugins,
+    isLoading,
+    error,
+    refetch: fetchRegistry,
+    searchPlugins,
+    getPluginInfo,
+    discoverPlugin,
+  };
+}

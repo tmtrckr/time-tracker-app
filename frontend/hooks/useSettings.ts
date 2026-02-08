@@ -26,6 +26,7 @@ export function useSettings() {
         defaultCategory: currentSettings.defaultCategory ?? null,
         shortIdleAsThinking: currentSettings.shortIdleAsThinking ?? true,
         darkMode: currentSettings.darkMode ?? false,
+        enable_marketplace: query.data.enable_marketplace ?? false,
       });
     }
   }, [query.data, setSettings]);

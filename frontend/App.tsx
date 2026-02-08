@@ -9,12 +9,13 @@ import History from './components/History/History';
 import { Reports } from './components/Reports';
 import { Pomodoro } from './components/Pomodoro';
 import Settings from './components/Settings/Settings';
+import { Marketplace } from './components/Marketplace';
 import IdlePrompt from './components/IdlePrompt/IdlePrompt';
 import ManualEntryModal from './components/ManualEntry/ManualEntryModal';
 import { listen } from '@tauri-apps/api/event';
 import type { ManualEntry } from './types';
 
-const VALID_VIEWS: View[] = ['dashboard', 'history', 'reports', 'settings', 'pomodoro'];
+const VALID_VIEWS: View[] = ['dashboard', 'history', 'reports', 'settings', 'pomodoro', 'marketplace'];
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -151,10 +152,10 @@ function App() {
         e.preventDefault();
         setShowManualEntry(true);
       }
-      // Ctrl/Cmd + 1-5 for navigation
-      if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '5') {
+      // Ctrl/Cmd + 1-6 for navigation
+      if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '6') {
         e.preventDefault();
-        const views: View[] = ['dashboard', 'history', 'reports', 'pomodoro', 'settings'];
+        const views: View[] = ['dashboard', 'history', 'reports', 'pomodoro', 'settings', 'marketplace'];
         setCurrentView(views[parseInt(e.key) - 1]);
       }
     };
@@ -255,6 +256,15 @@ function App() {
         return <Pomodoro />;
       case 'settings':
         return <Settings />;
+      case 'marketplace':
+        // Check if marketplace is enabled
+        const marketplaceEnabled = useStore.getState().settings.enable_marketplace ?? false;
+        if (!marketplaceEnabled) {
+          // Redirect to dashboard if marketplace is disabled
+          setCurrentView('dashboard');
+          return <Dashboard />;
+        }
+        return <Marketplace />;
       default:
         return <Dashboard />;
     }

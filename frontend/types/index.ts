@@ -92,6 +92,7 @@ export interface Settings {
   shortIdleAsThinking?: boolean;
   darkMode?: boolean;
   autoCategorizationEnabled?: boolean;
+  enable_marketplace?: boolean;
 }
 
 // Statistics types
@@ -262,3 +263,6 @@ export interface HourlyActivity {
   duration_sec: number;
   productive_duration_sec: number;
 }
+
+// Plugin types
+export * from './plugin';

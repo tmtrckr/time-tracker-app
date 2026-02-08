@@ -5,7 +5,7 @@ import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth 
 
 type SettingsTab = 'general' | 'categories' | 'rules' | 'projects' | 'tasks' | 'goals' | 'about';
 
-export type View = 'dashboard' | 'history' | 'reports' | 'settings' | 'pomodoro';
+export type View = 'dashboard' | 'history' | 'reports' | 'settings' | 'pomodoro' | 'marketplace';
 
 /** Shared helper: compute date range from preset (and optional custom range for preset 'custom'). */
 export function presetToDateRange(preset: DateRangePreset, now: Date, customRange?: DateRange): DateRange {
@@ -108,6 +108,7 @@ const defaultSettings: Settings = {
   defaultCategory: null,
   shortIdleAsThinking: true,
   darkMode: false,
+  enable_marketplace: false,
 };
 
 const store = create<AppState>()(

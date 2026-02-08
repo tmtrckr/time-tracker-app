@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use chrono::{Utc, Local, Duration, NaiveDate, Datelike};
 
 /// Latest schema version; new installs get this without running migrations.
-const LATEST_SCHEMA_VERSION: i64 = 12;
+const LATEST_SCHEMA_VERSION: i64 = 13;
 
 /// System category IDs (negative to avoid conflicts with regular categories)
 pub const SYSTEM_CATEGORY_UNCATEGORIZED: i64 = -1;
@@ -236,6 +236,8 @@ impl Database {
                 name TEXT NOT NULL,
                 version TEXT NOT NULL,
                 description TEXT,
+                repository_url TEXT,
+                manifest_path TEXT,
                 is_builtin BOOLEAN DEFAULT FALSE,
                 installed_at INTEGER NOT NULL,
                 enabled BOOLEAN DEFAULT TRUE
@@ -431,6 +433,7 @@ impl Database {
         if version < 10 { self.migrate_v10(conn)?; }
         if version < 11 { self.migrate_v11(conn)?; }
         if version < 12 { self.migrate_v12(conn)?; }
+        if version < 13 { self.migrate_v13(conn)?; }
 
         Ok(())
     }
@@ -468,6 +471,19 @@ impl Database {
         "#)?;
         tx.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '12')",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn migrate_v13(&self, conn: &Connection) -> Result<()> {
+        let tx = conn.unchecked_transaction()?;
+        // Add repository_url and manifest_path columns to installed_plugins table
+        let _ = tx.execute("ALTER TABLE installed_plugins ADD COLUMN repository_url TEXT", []);
+        let _ = tx.execute("ALTER TABLE installed_plugins ADD COLUMN manifest_path TEXT", []);
+        tx.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '13')",
             [],
         )?;
         tx.commit()?;
@@ -3016,12 +3032,34 @@ impl Database {
         description: Option<&str>,
         is_builtin: bool,
     ) -> Result<(), String> {
+        self.install_plugin_with_repo(
+            plugin_id,
+            name,
+            version,
+            description,
+            None,
+            None,
+            is_builtin,
+        )
+    }
+
+    /// Install a plugin with repository URL and manifest path
+    pub fn install_plugin_with_repo(
+        &self,
+        plugin_id: &str,
+        name: &str,
+        version: &str,
+        description: Option<&str>,
+        repository_url: Option<&str>,
+        manifest_path: Option<&str>,
+        is_builtin: bool,
+    ) -> Result<(), String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         let installed_at = chrono::Utc::now().timestamp();
         
         conn.execute(
-            "INSERT OR REPLACE INTO installed_plugins (id, name, version, description, is_builtin, installed_at, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            params![plugin_id, name, version, description, is_builtin, installed_at, true],
+            "INSERT OR REPLACE INTO installed_plugins (id, name, version, description, repository_url, manifest_path, is_builtin, installed_at, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            params![plugin_id, name, version, description, repository_url, manifest_path, is_builtin, installed_at, true],
         )
         .map_err(|e| format!("Failed to install plugin: {}", e))?;
         
@@ -3053,10 +3091,10 @@ impl Database {
     }
 
     /// Get all installed plugins
-    pub fn get_installed_plugins(&self) -> Result<Vec<(String, String, String, Option<String>, bool, bool)>, String> {
+    pub fn get_installed_plugins(&self) -> Result<Vec<(String, String, String, Option<String>, Option<String>, Option<String>, bool, bool)>, String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn
-            .prepare("SELECT id, name, version, description, is_builtin, enabled FROM installed_plugins")
+            .prepare("SELECT id, name, version, description, repository_url, manifest_path, is_builtin, enabled FROM installed_plugins")
             .map_err(|e| format!("Failed to prepare query: {}", e))?;
         
         let plugins = stmt
@@ -3066,8 +3104,10 @@ impl Database {
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
                     row.get::<_, Option<String>>(3)?,
-                    row.get::<_, bool>(4)?,
-                    row.get::<_, bool>(5)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, bool>(6)?,
+                    row.get::<_, bool>(7)?,
                 ))
             })
             .map_err(|e| format!("Failed to query plugins: {}", e))?

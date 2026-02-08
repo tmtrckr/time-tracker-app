@@ -615,6 +615,7 @@ pub struct SettingsResponse {
     pub autostart: bool,
     pub minimize_to_tray: bool,
     pub show_notifications: bool,
+    pub enable_marketplace: bool,
     pub date_format: String,
     pub time_format: String,
     // Optional: exact seconds for precision (if not provided, calculated from minutes)
@@ -730,6 +731,10 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<SettingsResponse, Stri
             .get("show_notifications")
             .map(|v| v == "true")
             .unwrap_or(true),
+        enable_marketplace: settings
+            .get("enable_marketplace")
+            .map(|v| v == "true")
+            .unwrap_or(false),
         date_format: settings
             .get("date_format")
             .cloned()
@@ -786,6 +791,7 @@ pub fn update_settings(
     settings_map.insert("autostart".to_string(), settings.autostart.to_string());
     settings_map.insert("minimize_to_tray".to_string(), settings.minimize_to_tray.to_string());
     settings_map.insert("show_notifications".to_string(), settings.show_notifications.to_string());
+    settings_map.insert("enable_marketplace".to_string(), settings.enable_marketplace.to_string());
     settings_map.insert("date_format".to_string(), settings.date_format);
     settings_map.insert("time_format".to_string(), settings.time_format);
     // Pomodoro settings
@@ -1703,4 +1709,290 @@ pub fn check_goal_alerts(
     let params = serde_json::json!({});
     let value = registry.invoke_plugin_command("goals-plugin", "check_goal_alerts", params)?;
     serde_json::from_value(value).map_err(|e| format!("Failed to deserialize alerts: {}", e))
+}
+
+// ========== PLUGIN COMMANDS ==========
+
+use crate::plugin_system::{PluginDiscovery, PluginLoader};
+use dirs::data_dir;
+
+/// Plugin info structure for frontend
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct InstalledPluginInfo {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub description: Option<String>,
+    pub repository_url: Option<String>,
+    pub manifest_path: Option<String>,
+    pub is_builtin: bool,
+    pub enabled: bool,
+}
+
+/// Registry plugin info for frontend
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RegistryPluginInfo {
+    pub id: String,
+    pub name: String,
+    pub author: String,
+    pub repository: String,
+    pub latest_version: String,
+    pub description: String,
+    pub category: Option<String>,
+    pub verified: bool,
+    pub downloads: u64,
+    pub tags: Option<Vec<String>>,
+    pub license: Option<String>,
+    pub min_core_version: Option<String>,
+    pub max_core_version: Option<String>,
+    pub api_version: Option<String>,
+}
+
+/// Get plugin registry from remote source
+#[tauri::command]
+pub async fn get_plugin_registry() -> Result<Vec<RegistryPluginInfo>, String> {
+    let registry_url = "https://raw.githubusercontent.com/bthos/time-tracker-plugins-registry/main/registry.json";
+    let mut discovery = PluginDiscovery::new(registry_url.to_string());
+    
+    let registry = discovery.get_registry().await?;
+    
+    Ok(registry.plugins.into_iter().map(|p| RegistryPluginInfo {
+        id: p.id,
+        name: p.name,
+        author: p.author,
+        repository: p.repository,
+        latest_version: p.latest_version,
+        description: p.description,
+        category: p.category,
+        verified: p.verified,
+        downloads: p.downloads,
+        tags: p.tags,
+        license: p.license,
+        min_core_version: p.min_core_version,
+        max_core_version: p.max_core_version,
+        api_version: p.api_version,
+    }).collect())
+}
+
+/// Search plugins in registry
+#[tauri::command]
+pub async fn search_plugins(query: String) -> Result<Vec<RegistryPluginInfo>, String> {
+    let registry_url = "https://raw.githubusercontent.com/bthos/time-tracker-plugins-registry/main/registry.json";
+    let mut discovery = PluginDiscovery::new(registry_url.to_string());
+    
+    let plugins = discovery.search_plugins(&query).await?;
+    
+    Ok(plugins.into_iter().map(|p| RegistryPluginInfo {
+        id: p.id,
+        name: p.name,
+        author: p.author,
+        repository: p.repository,
+        latest_version: p.latest_version,
+        description: p.description,
+        category: p.category,
+        verified: p.verified,
+        downloads: p.downloads,
+        tags: p.tags,
+        license: p.license,
+        min_core_version: p.min_core_version,
+        max_core_version: p.max_core_version,
+        api_version: p.api_version,
+    }).collect())
+}
+
+/// Get plugin info from repository URL
+#[tauri::command]
+pub async fn get_plugin_info(repository_url: String) -> Result<serde_json::Value, String> {
+    let discovery = PluginDiscovery::new("".to_string());
+    let manifest = discovery.get_plugin_manifest(&repository_url).await?;
+    
+    Ok(serde_json::to_value(&manifest).map_err(|e| format!("Failed to serialize manifest: {}", e))?)
+}
+
+/// Discover plugin from repository URL
+#[tauri::command]
+pub async fn discover_plugin(repository_url: String) -> Result<RegistryPluginInfo, String> {
+    let registry_url = "https://raw.githubusercontent.com/bthos/time-tracker-plugins-registry/main/registry.json";
+    let mut discovery = PluginDiscovery::new(registry_url.to_string());
+    
+    // Try to find in registry first
+    let registry = discovery.get_registry().await?;
+    if let Some(plugin) = registry.plugins.into_iter().find(|p| p.repository == repository_url) {
+        return Ok(RegistryPluginInfo {
+            id: plugin.id,
+            name: plugin.name,
+            author: plugin.author,
+            repository: plugin.repository,
+            latest_version: plugin.latest_version,
+            description: plugin.description,
+            category: plugin.category,
+            verified: plugin.verified,
+            downloads: plugin.downloads,
+            tags: plugin.tags,
+            license: plugin.license,
+            min_core_version: plugin.min_core_version,
+            max_core_version: plugin.max_core_version,
+            api_version: plugin.api_version,
+        });
+    }
+    
+    // If not in registry, fetch manifest directly
+    let manifest = discovery.get_plugin_manifest(&repository_url).await?;
+    
+    // Extract plugin ID from repository URL
+    let (_owner, repo) = PluginDiscovery::parse_github_url_static(&repository_url)
+        .map_err(|e| format!("Invalid GitHub URL: {}", e))?;
+    let plugin_id = repo.trim_end_matches("-plugin");
+    
+    Ok(RegistryPluginInfo {
+        id: plugin_id.to_string(),
+        name: manifest.plugin.display_name.unwrap_or(manifest.plugin.name.clone()),
+        author: manifest.plugin.author,
+        repository: manifest.plugin.repository,
+        latest_version: manifest.plugin.version,
+        description: manifest.plugin.description,
+        category: None,
+        verified: false,
+        downloads: 0,
+        tags: None,
+        license: manifest.plugin.license,
+        min_core_version: manifest.plugin.min_core_version,
+        max_core_version: manifest.plugin.max_core_version,
+        api_version: manifest.plugin.api_version,
+    })
+}
+
+/// Install plugin from repository URL
+#[tauri::command]
+pub async fn install_plugin(
+    state: State<'_, AppState>,
+    repository_url: String,
+    _version: Option<String>,
+) -> Result<(), String> {
+    let discovery = PluginDiscovery::new("".to_string());
+    
+    // Get latest release
+    let release = discovery.get_latest_release(&repository_url).await?;
+    
+    // Get platform-specific asset
+    let asset = discovery.get_platform_asset(&release)?;
+    
+    // Get manifest to determine plugin ID
+    let manifest = discovery.get_plugin_manifest(&repository_url).await?;
+    let plugin_id = manifest.plugin.name.clone();
+    
+    // Get plugins directory
+    let data_dir = data_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("timetracker");
+    let plugins_dir = data_dir.join("plugins");
+    
+    // Create loader and install
+    let loader = PluginLoader::new(plugins_dir);
+    let manifest_path = loader.install_from_release(&plugin_id, asset).await?;
+    
+    // Validate manifest
+    let installed_manifest = loader.load_manifest(&manifest_path)?;
+    loader.validate_manifest(&installed_manifest)?;
+    
+    // Register in database
+    state.db.install_plugin_with_repo(
+        &plugin_id,
+        &installed_manifest.plugin.display_name.unwrap_or(installed_manifest.plugin.name.clone()),
+        &installed_manifest.plugin.version,
+        Some(&installed_manifest.plugin.description),
+        Some(&repository_url),
+        manifest_path.to_str(),
+        false,
+    )?;
+    
+    Ok(())
+}
+
+/// List all installed plugins
+#[tauri::command]
+pub fn list_installed_plugins(state: State<'_, AppState>) -> Result<Vec<InstalledPluginInfo>, String> {
+    let plugins = state.db.get_installed_plugins()?;
+    
+    Ok(plugins.into_iter().map(|(id, name, version, description, repository_url, manifest_path, is_builtin, enabled)| {
+        InstalledPluginInfo {
+            id,
+            name,
+            version,
+            description,
+            repository_url,
+            manifest_path,
+            is_builtin,
+            enabled,
+        }
+    }).collect())
+}
+
+/// Uninstall plugin
+#[tauri::command]
+pub async fn uninstall_plugin(
+    state: State<'_, AppState>,
+    plugin_id: String,
+) -> Result<(), String> {
+    // Check if plugin is builtin
+    let plugins = state.db.get_installed_plugins()?;
+    if let Some((_, _, _, _, _, _, is_builtin, _)) = plugins.iter().find(|(id, _, _, _, _, _, _, _)| id == &plugin_id) {
+        if *is_builtin {
+            return Err("Cannot uninstall built-in plugins".to_string());
+        }
+    }
+    
+    // Remove from database
+    state.db.uninstall_plugin(&plugin_id)?;
+    
+    // Remove files
+    let data_dir = data_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("timetracker");
+    let plugins_dir = data_dir.join("plugins");
+    let loader = PluginLoader::new(plugins_dir);
+    loader.uninstall(&plugin_id)?;
+    
+    Ok(())
+}
+
+/// Enable plugin
+#[tauri::command]
+pub fn enable_plugin(
+    state: State<'_, AppState>,
+    plugin_id: String,
+) -> Result<(), String> {
+    state.db.set_plugin_enabled(&plugin_id, true)
+}
+
+/// Disable plugin
+#[tauri::command]
+pub fn disable_plugin(
+    state: State<'_, AppState>,
+    plugin_id: String,
+) -> Result<(), String> {
+    state.db.set_plugin_enabled(&plugin_id, false)
+}
+
+/// Load plugin into runtime (for dynamic libraries - placeholder for now)
+#[tauri::command]
+pub fn load_plugin(
+    state: State<'_, AppState>,
+    plugin_id: String,
+) -> Result<(), String> {
+    // Check if plugin is installed and enabled
+    let plugins = state.db.get_installed_plugins()?;
+    let plugin_info = plugins.iter()
+        .find(|(id, _, _, _, _, _, _, _)| id == &plugin_id)
+        .ok_or_else(|| format!("Plugin {} not found", plugin_id))?;
+    
+    if !plugin_info.6 { // enabled field
+        return Err("Plugin is disabled".to_string());
+    }
+    
+    // TODO: Implement dynamic library loading with libloading
+    // For now, built-in plugins are already loaded in main.rs
+    // External plugins will require libloading implementation
+    
+    Ok(())
 }
