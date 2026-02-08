@@ -1335,6 +1335,7 @@ pub struct InstalledPluginInfo {
     pub manifest_path: Option<String>,
     pub frontend_entry: Option<String>,
     pub frontend_components: Option<Vec<String>>,
+    pub author: Option<String>,
     pub enabled: bool,
 }
 
@@ -1486,9 +1487,15 @@ pub async fn install_plugin(
     // Get platform-specific asset
     let asset = discovery.get_platform_asset(&release)?;
     
-    // Get manifest to determine plugin ID
+    // Get manifest to determine plugin ID and author
     let manifest = discovery.get_plugin_manifest(&repository_url).await?;
     let plugin_id = manifest.plugin.name.clone();
+    let author = manifest.plugin.author.clone();
+    
+    // Validate author is present
+    if author.is_empty() {
+        return Err("Plugin author is required in manifest".to_string());
+    }
     
     // Get plugins directory
     let data_dir = data_dir()
@@ -1498,7 +1505,7 @@ pub async fn install_plugin(
     
     // Create loader and install
     let loader = PluginLoader::new(plugins_dir);
-    let manifest_path = loader.install_from_release(&plugin_id, asset).await?;
+    let manifest_path = loader.install_from_release(&author, &plugin_id, asset).await?;
     
     // Validate manifest
     let installed_manifest = loader.load_manifest(&manifest_path)?;
@@ -1521,12 +1528,13 @@ pub async fn install_plugin(
         manifest_path.to_str(),
         frontend_entry.as_deref(),
         frontend_components.as_deref(),
+        Some(&author),
     )?;
     
     // Load plugin into runtime if plugin_registry is available
     if let Some(plugin_registry) = &state.plugin_registry {
         if let Some(extension_registry) = &state.extension_registry {
-            match loader.load_dynamic_plugin(&plugin_id) {
+            match loader.load_dynamic_plugin(&author, &plugin_id) {
                 Ok(mut plugin) => {
                     use crate::plugin_system::api::PluginAPI;
                     use time_tracker_plugin_sdk::PluginAPIInterface;
@@ -1561,7 +1569,7 @@ pub async fn install_plugin(
 pub fn list_installed_plugins(state: State<'_, AppState>) -> Result<Vec<InstalledPluginInfo>, String> {
     let plugins = state.db.get_installed_plugins()?;
     
-    Ok(plugins.into_iter().map(|(id, name, version, description, repository_url, manifest_path, frontend_entry, frontend_components, enabled)| {
+    Ok(plugins.into_iter().map(|(id, name, version, description, repository_url, manifest_path, frontend_entry, frontend_components, author, enabled)| {
         // Parse frontend_components from JSON string if present
         let components: Option<Vec<String>> = frontend_components
             .and_then(|s| serde_json::from_str(&s).ok());
@@ -1575,6 +1583,7 @@ pub fn list_installed_plugins(state: State<'_, AppState>) -> Result<Vec<Installe
             manifest_path,
             frontend_entry,
             frontend_components: components,
+            author,
             enabled,
         }
     }).collect())
@@ -1586,7 +1595,35 @@ pub async fn uninstall_plugin(
     state: State<'_, AppState>,
     plugin_id: String,
 ) -> Result<(), String> {
-    // Remove from database (all plugins can be uninstalled now)
+    // Get plugin info to find author
+    let plugins = state.db.get_installed_plugins()?;
+    let plugin_info = plugins.iter()
+        .find(|(id, _, _, _, _, _, _, _, _, _)| id == &plugin_id)
+        .ok_or_else(|| format!("Plugin {} not found", plugin_id))?;
+    
+    // Get author from database or try to read from manifest
+    let author = if let Some(auth) = &plugin_info.8 { // author field
+        auth.clone()
+    } else {
+        // Try to read from manifest if available
+        if let Some(manifest_path_str) = &plugin_info.5 { // manifest_path field
+            let manifest_path = std::path::PathBuf::from(manifest_path_str);
+            let data_dir = data_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+                .join("timetracker");
+            let plugins_dir = data_dir.join("plugins");
+            let loader = PluginLoader::new(plugins_dir);
+            if let Ok(manifest) = loader.load_manifest(&manifest_path) {
+                manifest.plugin.author
+            } else {
+                return Err(format!("Failed to load manifest for plugin {} to get author", plugin_id));
+            }
+        } else {
+            return Err(format!("Plugin {} has no author and no manifest path", plugin_id));
+        }
+    };
+    
+    // Remove from database
     state.db.uninstall_plugin(&plugin_id)?;
     
     // Remove files
@@ -1595,7 +1632,7 @@ pub async fn uninstall_plugin(
         .join("timetracker");
     let plugins_dir = data_dir.join("plugins");
     let loader = PluginLoader::new(plugins_dir);
-    loader.uninstall(&plugin_id)?;
+    loader.uninstall(&author, &plugin_id)?;
     
     Ok(())
 }
@@ -1627,12 +1664,34 @@ pub fn load_plugin(
     // Check if plugin is installed and enabled
     let plugins = state.db.get_installed_plugins()?;
     let plugin_info = plugins.iter()
-        .find(|(id, _, _, _, _, _, _, _, _)| id == &plugin_id)
+        .find(|(id, _, _, _, _, _, _, _, _, _)| id == &plugin_id)
         .ok_or_else(|| format!("Plugin {} not found", plugin_id))?;
     
-    if !plugin_info.8 { // enabled field
+    if !plugin_info.9 { // enabled field
         return Err("Plugin is disabled".to_string());
     }
+    
+    // Get author from database or try to read from manifest
+    let author = if let Some(auth) = &plugin_info.8 { // author field
+        auth.clone()
+    } else {
+        // Try to read from manifest if available
+        if let Some(manifest_path_str) = &plugin_info.5 { // manifest_path field
+            let manifest_path = std::path::PathBuf::from(manifest_path_str);
+            let data_dir = dirs::data_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+                .join("timetracker");
+            let plugins_dir = data_dir.join("plugins");
+            let loader = crate::plugin_system::loader::PluginLoader::new(plugins_dir);
+            if let Ok(manifest) = loader.load_manifest(&manifest_path) {
+                manifest.plugin.author
+            } else {
+                return Err(format!("Failed to load manifest for plugin {} to get author", plugin_id));
+            }
+        } else {
+            return Err(format!("Plugin {} has no author and no manifest path", plugin_id));
+        }
+    };
     
     // Load plugin if plugin_registry is available
     if let Some(plugin_registry) = &state.plugin_registry {
@@ -1643,7 +1702,7 @@ pub fn load_plugin(
             let plugins_dir = data_dir.join("plugins");
             let loader = crate::plugin_system::loader::PluginLoader::new(plugins_dir);
             
-            match loader.load_dynamic_plugin(&plugin_id) {
+            match loader.load_dynamic_plugin(&author, &plugin_id) {
                 Ok(mut plugin) => {
                     use crate::plugin_system::api::PluginAPI;
                     use time_tracker_plugin_sdk::PluginAPIInterface;

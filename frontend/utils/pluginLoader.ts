@@ -7,6 +7,7 @@ const loadedPlugins = new Map<string, PluginFrontendModule>();
 
 export interface PluginManifest {
   id: string;
+  author?: string;
   frontend?: {
     entry?: string;
     components?: string[];
@@ -14,10 +15,20 @@ export interface PluginManifest {
 }
 
 /**
+ * Normalize author name for use in file paths
+ */
+function normalizeAuthorName(author: string): string {
+  return author.toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9_-]/g, '');
+}
+
+/**
  * Load a plugin's frontend bundle
  */
 export async function loadPluginFrontend(
   pluginId: string,
+  author: string | undefined,
   manifest: PluginManifest,
   api: PluginFrontendAPI
 ): Promise<void> {
@@ -31,6 +42,13 @@ export async function loadPluginFrontend(
     return;
   }
 
+  // Get author from manifest or parameter
+  const pluginAuthor = author || manifest.author;
+  if (!pluginAuthor) {
+    console.error(`Plugin ${pluginId} has no author - cannot load frontend`);
+    return;
+  }
+
   try {
     // Normalize entry path - remove leading 'frontend/' if present since we add it below
     let entryPath = manifest.frontend.entry || '';
@@ -38,10 +56,9 @@ export async function loadPluginFrontend(
       entryPath = entryPath.substring('frontend/'.length);
     }
     
-    // In production, load from plugins/{id}/frontend/bundle.js
-    // For now, we'll use dynamic imports from a known location
-    // TODO: Update this to load from actual plugin bundle location
-    const modulePath = `/plugins/${pluginId}/frontend/${entryPath}`;
+    // Load from plugins/{author}/{pluginId}/frontend/{entryPath}
+    const normalizedAuthor = normalizeAuthorName(pluginAuthor);
+    const modulePath = `/plugins/${normalizedAuthor}/${pluginId}/frontend/${entryPath}`;
     
     // Dynamic import of the plugin module
     const module = await import(/* @vite-ignore */ modulePath);

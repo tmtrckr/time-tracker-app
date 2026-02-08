@@ -50,6 +50,7 @@ export function usePluginFrontend() {
         
         const manifest = {
           id: plugin.id,
+          author: plugin.author,
           frontend: {
             entry: plugin.frontend_entry || `${plugin.id}/index.js`,
             components: plugin.frontend_components || [],
@@ -57,7 +58,7 @@ export function usePluginFrontend() {
         };
         
         const api = createPluginAPI(plugin.id);
-        await loadPluginFrontend(plugin.id, manifest, api);
+        await loadPluginFrontend(plugin.id, plugin.author || undefined, manifest, api);
       } catch (error) {
         console.error(`Failed to load frontend for plugin ${plugin.id}:`, error);
       }

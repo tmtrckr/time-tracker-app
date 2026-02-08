@@ -49,6 +49,7 @@ export interface InstalledPlugin {
   enabled: boolean;
   frontend_entry?: string;
   frontend_components?: string[];
+  author?: string;
 }
 
 export interface PluginRegistry {

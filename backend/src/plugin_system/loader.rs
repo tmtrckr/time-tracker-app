@@ -31,18 +31,35 @@ impl PluginLoader {
         &self.plugins_dir
     }
 
-    /// Get plugin directory path
-    pub fn get_plugin_dir(&self, plugin_id: &str) -> PathBuf {
-        self.plugins_dir.join(plugin_id)
+    /// Normalize author name for use in file paths
+    /// Converts to lowercase, replaces spaces with hyphens, removes special characters
+    fn normalize_author_name(author: &str) -> String {
+        author.to_lowercase()
+            .replace(' ', "-")
+            .chars()
+            .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+            .collect()
+    }
+
+    /// Get plugin directory path with author grouping
+    pub fn get_plugin_dir(&self, author: &str, plugin_id: &str) -> PathBuf {
+        let normalized_author = Self::normalize_author_name(author);
+        self.plugins_dir.join(normalized_author).join(plugin_id)
     }
 
     /// Download and install plugin from GitHub release
     pub async fn install_from_release(
         &self,
+        author: &str,
         plugin_id: &str,
         asset: &GitHubReleaseAsset,
     ) -> Result<PathBuf, String> {
-        let plugin_dir = self.get_plugin_dir(plugin_id);
+        // Validate author is not empty
+        if author.is_empty() {
+            return Err("Plugin author is required".to_string());
+        }
+        
+        let plugin_dir = self.get_plugin_dir(author, plugin_id);
         fs::create_dir_all(&plugin_dir)
             .map_err(|e| format!("Failed to create plugin directory: {}", e))?;
 
@@ -154,6 +171,9 @@ impl PluginLoader {
         if manifest.plugin.version.is_empty() {
             return Err("Plugin version is required".to_string());
         }
+        if manifest.plugin.author.is_empty() {
+            return Err("Plugin author is required".to_string());
+        }
         // Repository is optional - can be filled automatically when installing from GitHub
 
         // Check backend section if present
@@ -167,8 +187,8 @@ impl PluginLoader {
     }
 
     /// Uninstall plugin (remove directory)
-    pub fn uninstall(&self, plugin_id: &str) -> Result<(), String> {
-        let plugin_dir = self.get_plugin_dir(plugin_id);
+    pub fn uninstall(&self, author: &str, plugin_id: &str) -> Result<(), String> {
+        let plugin_dir = self.get_plugin_dir(author, plugin_id);
         if plugin_dir.exists() {
             fs::remove_dir_all(&plugin_dir)
                 .map_err(|e| format!("Failed to remove plugin directory: {}", e))?;
@@ -177,14 +197,14 @@ impl PluginLoader {
     }
 
     /// Check if plugin is installed
-    pub fn is_installed(&self, plugin_id: &str) -> bool {
-        let plugin_dir = self.get_plugin_dir(plugin_id);
+    pub fn is_installed(&self, author: &str, plugin_id: &str) -> bool {
+        let plugin_dir = self.get_plugin_dir(author, plugin_id);
         plugin_dir.exists() && plugin_dir.join("plugin.toml").exists()
     }
 
     /// Get plugin manifest path if installed
-    pub fn get_manifest_path(&self, plugin_id: &str) -> Option<PathBuf> {
-        let manifest_path = self.get_plugin_dir(plugin_id).join("plugin.toml");
+    pub fn get_manifest_path(&self, author: &str, plugin_id: &str) -> Option<PathBuf> {
+        let manifest_path = self.get_plugin_dir(author, plugin_id).join("plugin.toml");
         if manifest_path.exists() {
             Some(manifest_path)
         } else {
@@ -248,12 +268,13 @@ impl PluginLoader {
     /// Returns the loaded plugin instance ready for initialization
     pub fn load_dynamic_plugin(
         &self,
+        author: &str,
         plugin_id: &str,
     ) -> Result<Box<dyn time_tracker_plugin_sdk::Plugin>, String> {
         use libloading::{Library, Symbol};
         use time_tracker_plugin_sdk::PluginCreateFn;
         
-        let plugin_dir = self.get_plugin_dir(plugin_id);
+        let plugin_dir = self.get_plugin_dir(author, plugin_id);
         
         // Try to load manifest to get library_name
         let manifest_path = plugin_dir.join("plugin.toml");
@@ -335,14 +356,33 @@ impl PluginLoader {
         let installed_plugins = db.get_installed_plugins()
             .map_err(|e| format!("Failed to get installed plugins: {}", e))?;
         
-        for (plugin_id, _name, _version, _description, _repo_url, _manifest_path, _frontend_entry, _frontend_components, enabled) in installed_plugins {
+        for (plugin_id, _name, _version, _description, _repo_url, _manifest_path, _frontend_entry, _frontend_components, author, enabled) in installed_plugins {
             // Skip disabled plugins
             if !enabled {
                 continue;
             }
             
+            // Get author from database or try to read from manifest
+            let author = if let Some(auth) = author {
+                auth
+            } else {
+                // Try to read author from manifest if not in database
+                if let Some(manifest_path_str) = _manifest_path {
+                    let manifest_path = std::path::PathBuf::from(manifest_path_str);
+                    if let Ok(manifest) = self.load_manifest(&manifest_path) {
+                        manifest.plugin.author
+                    } else {
+                        eprintln!("Warning: Failed to load manifest for plugin {} to get author", plugin_id);
+                        continue;
+                    }
+                } else {
+                    eprintln!("Warning: Plugin {} has no author and no manifest path", plugin_id);
+                    continue;
+                }
+            };
+            
             // Try to load the plugin dynamically
-            match self.load_dynamic_plugin(&plugin_id) {
+            match self.load_dynamic_plugin(&author, &plugin_id) {
                 Ok(plugin) => {
                     loaded_plugins.push((plugin_id.clone(), plugin));
                     eprintln!("Loaded dynamic plugin: {}", plugin_id);

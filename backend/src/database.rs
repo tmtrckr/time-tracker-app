@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use chrono::{Utc, Local, Duration, NaiveDate, Datelike};
 
 /// Latest schema version; new installs get this without running migrations.
-const LATEST_SCHEMA_VERSION: i64 = 13;
+const LATEST_SCHEMA_VERSION: i64 = 12;
 
 /// System category IDs (negative to avoid conflicts with regular categories)
 pub const SYSTEM_CATEGORY_UNCATEGORIZED: i64 = -1;
@@ -177,6 +177,7 @@ impl Database {
                 manifest_path TEXT,
                 frontend_entry TEXT,
                 frontend_components TEXT,
+                author TEXT,
                 installed_at INTEGER NOT NULL,
                 enabled BOOLEAN DEFAULT TRUE
             );
@@ -339,8 +340,6 @@ impl Database {
         if version < 10 { self.migrate_v10(conn)?; }
         if version < 11 { self.migrate_v11(conn)?; }
         if version < 12 { self.migrate_v12(conn)?; }
-        // v13, v14, v15 merged into v12 - migrate_v12 handles all of them and sets version to 15
-        // For databases that already have v12-v14, migrate_v12 will update them to v15
 
         Ok(())
     }
@@ -389,70 +388,52 @@ impl Database {
     fn migrate_v12(&self, conn: &Connection) -> Result<()> {
         let tx = conn.unchecked_transaction()?;
         
-        // Check if table exists
-        let table_exists: bool = tx.query_row(
-            "SELECT EXISTS(SELECT name FROM sqlite_master WHERE type='table' AND name='installed_plugins')",
-            [],
-            |row| row.get(0),
-        ).unwrap_or(false);
+        // Migrate installed_plugins table to latest structure
+        // This migration combines v12-v16 changes:
+        // - Remove is_builtin column if it exists
+        // - Add repository_url, manifest_path, frontend_entry, frontend_components, author columns
         
-        if !table_exists {
-            // Create table with full structure for new installations
+        // Step 1: Remove is_builtin column if it exists
+        if Self::column_exists(conn, "installed_plugins", "is_builtin") {
+            // Recreate table without is_builtin column
             tx.execute_batch(r#"
-                CREATE TABLE installed_plugins (
+                CREATE TABLE installed_plugins_new (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     version TEXT NOT NULL,
                     description TEXT,
                     repository_url TEXT,
                     manifest_path TEXT,
-                    frontend_entry TEXT,
-                    frontend_components TEXT,
                     installed_at INTEGER NOT NULL,
                     enabled BOOLEAN DEFAULT TRUE
                 );
+                INSERT INTO installed_plugins_new (id, name, version, description, repository_url, manifest_path, installed_at, enabled)
+                SELECT id, name, version, description, repository_url, manifest_path, installed_at, enabled
+                FROM installed_plugins;
+                DROP TABLE installed_plugins;
+                ALTER TABLE installed_plugins_new RENAME TO installed_plugins;
             "#)?;
-        } else {
-            // Table exists - migrate from old structure to new
-            // Step 1: Remove is_builtin column if it exists (v14 migration logic)
-            if Self::column_exists(conn, "installed_plugins", "is_builtin") {
-                // Recreate table without is_builtin column
-                tx.execute_batch(r#"
-                    CREATE TABLE installed_plugins_new (
-                        id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                        version TEXT NOT NULL,
-                    description TEXT,
-                        repository_url TEXT,
-                        manifest_path TEXT,
-                        installed_at INTEGER NOT NULL,
-                        enabled BOOLEAN DEFAULT TRUE
-                    );
-                    INSERT INTO installed_plugins_new (id, name, version, description, repository_url, manifest_path, installed_at, enabled)
-                    SELECT id, name, version, description, repository_url, manifest_path, installed_at, enabled
-                    FROM installed_plugins;
-                    DROP TABLE installed_plugins;
-                    ALTER TABLE installed_plugins_new RENAME TO installed_plugins;
-                "#)?;
-            }
-            
-            // Step 2: Add missing columns if they don't exist (v13, v15 migration logic)
-            if !Self::column_exists(conn, "installed_plugins", "repository_url") {
-                let _ = tx.execute("ALTER TABLE installed_plugins ADD COLUMN repository_url TEXT", []);
-            }
-            if !Self::column_exists(conn, "installed_plugins", "manifest_path") {
-                let _ = tx.execute("ALTER TABLE installed_plugins ADD COLUMN manifest_path TEXT", []);
-            }
-            if !Self::column_exists(conn, "installed_plugins", "frontend_entry") {
-                let _ = tx.execute("ALTER TABLE installed_plugins ADD COLUMN frontend_entry TEXT", []);
-            }
-            if !Self::column_exists(conn, "installed_plugins", "frontend_components") {
-                let _ = tx.execute("ALTER TABLE installed_plugins ADD COLUMN frontend_components TEXT", []);
-            }
+        }
+        
+        // Step 2: Add missing columns if they don't exist
+        if !Self::column_exists(conn, "installed_plugins", "repository_url") {
+            let _ = tx.execute("ALTER TABLE installed_plugins ADD COLUMN repository_url TEXT", []);
+        }
+        if !Self::column_exists(conn, "installed_plugins", "manifest_path") {
+            let _ = tx.execute("ALTER TABLE installed_plugins ADD COLUMN manifest_path TEXT", []);
+        }
+        if !Self::column_exists(conn, "installed_plugins", "frontend_entry") {
+            let _ = tx.execute("ALTER TABLE installed_plugins ADD COLUMN frontend_entry TEXT", []);
+        }
+        if !Self::column_exists(conn, "installed_plugins", "frontend_components") {
+            let _ = tx.execute("ALTER TABLE installed_plugins ADD COLUMN frontend_components TEXT", []);
+        }
+        if !Self::column_exists(conn, "installed_plugins", "author") {
+            let _ = tx.execute("ALTER TABLE installed_plugins ADD COLUMN author TEXT", []);
         }
         
         tx.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '15')",
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '12')",
             [],
         )?;
         tx.commit()?;
@@ -2954,6 +2935,7 @@ impl Database {
             None,
             None,
             None,
+            None,
         )
     }
 
@@ -2968,13 +2950,14 @@ impl Database {
         manifest_path: Option<&str>,
         frontend_entry: Option<&str>,
         frontend_components: Option<&str>,
+        author: Option<&str>,
     ) -> Result<(), String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         let installed_at = chrono::Utc::now().timestamp();
         
         conn.execute(
-            "INSERT OR REPLACE INTO installed_plugins (id, name, version, description, repository_url, manifest_path, frontend_entry, frontend_components, installed_at, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            params![plugin_id, name, version, description, repository_url, manifest_path, frontend_entry, frontend_components, installed_at, true],
+            "INSERT OR REPLACE INTO installed_plugins (id, name, version, description, repository_url, manifest_path, frontend_entry, frontend_components, author, installed_at, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            params![plugin_id, name, version, description, repository_url, manifest_path, frontend_entry, frontend_components, author, installed_at, true],
         )
         .map_err(|e| format!("Failed to install plugin: {}", e))?;
         
@@ -3006,10 +2989,10 @@ impl Database {
     }
 
     /// Get all installed plugins
-    pub fn get_installed_plugins(&self) -> Result<Vec<(String, String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, bool)>, String> {
+    pub fn get_installed_plugins(&self) -> Result<Vec<(String, String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, bool)>, String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn
-            .prepare("SELECT id, name, version, description, repository_url, manifest_path, frontend_entry, frontend_components, enabled FROM installed_plugins")
+            .prepare("SELECT id, name, version, description, repository_url, manifest_path, frontend_entry, frontend_components, author, enabled FROM installed_plugins")
             .map_err(|e| format!("Failed to prepare query: {}", e))?;
         
         let plugins = stmt
@@ -3023,7 +3006,8 @@ impl Database {
                     row.get::<_, Option<String>>(5)?,
                     row.get::<_, Option<String>>(6)?,
                     row.get::<_, Option<String>>(7)?,
-                    row.get::<_, bool>(8)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, bool>(9)?,
                 ))
             })
             .map_err(|e| format!("Failed to query plugins: {}", e))?
