@@ -58,11 +58,13 @@ fn load_builtin_plugins(
 ) -> Result<(), String> {
     use plugin_system::api::PluginAPI;
     
+    use time_tracker_plugin_sdk::PluginAPIInterface;
+    
     // Load Projects/Tasks Plugin
     if db.is_plugin_installed("projects-tasks-plugin")? {
         let mut plugin = ProjectsTasksPlugin::new(Arc::clone(db));
         let api = PluginAPI::new(Arc::clone(db), Arc::clone(extension_registry), "projects-tasks-plugin".to_string());
-        plugin.initialize(&api)?;
+        plugin.initialize(&api as &dyn PluginAPIInterface)?;
         plugin_registry.register(Box::new(plugin))?;
         eprintln!("Loaded plugin: projects-tasks-plugin");
     }
@@ -71,7 +73,7 @@ fn load_builtin_plugins(
     if db.is_plugin_installed("billing-plugin")? {
         let mut plugin = BillingPlugin::new(Arc::clone(db));
         let api = PluginAPI::new(Arc::clone(db), Arc::clone(extension_registry), "billing-plugin".to_string());
-        plugin.initialize(&api)?;
+        plugin.initialize(&api as &dyn PluginAPIInterface)?;
         plugin_registry.register(Box::new(plugin))?;
         eprintln!("Loaded plugin: billing-plugin");
     }
@@ -80,7 +82,7 @@ fn load_builtin_plugins(
     if db.is_plugin_installed("pomodoro-plugin")? {
         let mut plugin = PomodoroPlugin::new(Arc::clone(db));
         let api = PluginAPI::new(Arc::clone(db), Arc::clone(extension_registry), "pomodoro-plugin".to_string());
-        plugin.initialize(&api)?;
+        plugin.initialize(&api as &dyn PluginAPIInterface)?;
         plugin_registry.register(Box::new(plugin))?;
         eprintln!("Loaded plugin: pomodoro-plugin");
     }
@@ -89,7 +91,7 @@ fn load_builtin_plugins(
     if db.is_plugin_installed("goals-plugin")? {
         let mut plugin = GoalsPlugin::new(Arc::clone(db));
         let api = PluginAPI::new(Arc::clone(db), Arc::clone(extension_registry), "goals-plugin".to_string());
-        plugin.initialize(&api)?;
+        plugin.initialize(&api as &dyn PluginAPIInterface)?;
         plugin_registry.register(Box::new(plugin))?;
         eprintln!("Loaded plugin: goals-plugin");
     }

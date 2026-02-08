@@ -3,8 +3,8 @@
 //! Manages billable time tracking, extends categories with is_billable and hourly_rate fields
 
 use crate::database::Database;
-use crate::plugin_system::{Plugin, PluginInfo, PluginAPI};
-use crate::plugin_system::extensions::{EntityType, SchemaChange, ModelField};
+use crate::plugin_system::PluginAPI;
+use time_tracker_plugin_sdk::{Plugin, PluginInfo, PluginAPIInterface, EntityType, SchemaChange, ModelField};
 use std::sync::Arc;
 use serde_json;
 
@@ -33,7 +33,7 @@ impl Plugin for BillingPlugin {
         &self.info
     }
     
-    fn initialize(&mut self, api: &PluginAPI) -> Result<(), String> {
+    fn initialize(&mut self, api: &dyn PluginAPIInterface) -> Result<(), String> {
         // Register schema extensions for categories
         api.register_schema_extension(
             EntityType::Category,

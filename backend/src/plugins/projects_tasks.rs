@@ -3,8 +3,8 @@
 //! Manages projects and tasks, extends activities and manual_entries with project_id and task_id fields
 
 use crate::database::Database;
-use crate::plugin_system::{Plugin, PluginInfo, PluginAPI};
-use crate::plugin_system::extensions::{EntityType, SchemaChange, ModelField};
+use crate::plugin_system::PluginAPI;
+use time_tracker_plugin_sdk::{Plugin, PluginInfo, PluginAPIInterface, EntityType, SchemaChange, ModelField, ForeignKey};
 use std::sync::Arc;
 use serde_json;
 
@@ -33,7 +33,7 @@ impl Plugin for ProjectsTasksPlugin {
         &self.info
     }
     
-    fn initialize(&mut self, api: &PluginAPI) -> Result<(), String> {
+    fn initialize(&mut self, api: &dyn PluginAPIInterface) -> Result<(), String> {
         // Note: Projects and tasks tables are already created in core database.rs
         // The Extension API will handle adding columns to activities and manual_entries
         // if they don't already exist
@@ -57,7 +57,7 @@ impl Plugin for ProjectsTasksPlugin {
                     column: "task_id".to_string(),
                     column_type: "INTEGER".to_string(),
                     default: None,
-                    foreign_key: Some(crate::plugin_system::extensions::ForeignKey {
+                    foreign_key: Some(ForeignKey {
                         table: "tasks".to_string(),
                         column: "id".to_string(),
                     }),
@@ -89,7 +89,7 @@ impl Plugin for ProjectsTasksPlugin {
                     column: "task_id".to_string(),
                     column_type: "INTEGER".to_string(),
                     default: None,
-                    foreign_key: Some(crate::plugin_system::extensions::ForeignKey {
+                    foreign_key: Some(ForeignKey {
                         table: "tasks".to_string(),
                         column: "id".to_string(),
                     }),

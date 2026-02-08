@@ -3,11 +3,9 @@
 //! Manages goals and goal tracking
 
 use crate::database::{Database, Goal, GoalProgress, GoalAlert};
-use crate::plugin_system::{Plugin, PluginInfo, PluginAPI};
-use crate::plugin_system::extensions::{EntityType, SchemaChange, QueryFilter};
+use time_tracker_plugin_sdk::{Plugin, PluginInfo, PluginAPIInterface};
 use std::sync::Arc;
 use serde_json;
-use std::collections::HashMap;
 
 pub struct GoalsPlugin {
     info: PluginInfo,
@@ -34,42 +32,11 @@ impl Plugin for GoalsPlugin {
         &self.info
     }
     
-    fn initialize(&mut self, api: &PluginAPI) -> Result<(), String> {
+    fn initialize(&mut self, _api: &dyn PluginAPIInterface) -> Result<(), String> {
         // Note: goals table is already created in core database.rs
-        // Register query filters for filtering activities by goal criteria
-        api.register_query_filters(
-            EntityType::Activity,
-            vec![
-                QueryFilter {
-                    name: "by_goal_category".to_string(),
-                    filter_fn: Box::new(|activities, params| {
-                        let category_id = params.get("category_id")
-                            .and_then(|v| v.as_i64());
-                        if let Some(cat_id) = category_id {
-                            Ok(activities.into_iter()
-                                .filter(|a| a.category_id == Some(cat_id))
-                                .collect())
-                        } else {
-                            Ok(activities)
-                        }
-                    }),
-                },
-                QueryFilter {
-                    name: "by_goal_project".to_string(),
-                    filter_fn: Box::new(|activities, params| {
-                        let project_id = params.get("project_id")
-                            .and_then(|v| v.as_i64());
-                        if let Some(proj_id) = project_id {
-                            Ok(activities.into_iter()
-                                .filter(|a| a.project_id == Some(proj_id))
-                                .collect())
-                        } else {
-                            Ok(activities)
-                        }
-                    }),
-                },
-            ],
-        )?;
+        // TODO: Query filters registration temporarily disabled - needs backend-specific types
+        // Will be re-enabled in Phase 3 when query filters are fully migrated to SDK types
+        // Query filters for filtering activities by goal criteria will be registered then
         
         Ok(())
     }

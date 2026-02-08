@@ -3,75 +3,22 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use crate::database::{Database, Activity};
+use time_tracker_plugin_sdk::{
+    EntityType, ExtensionType, SchemaChange, ModelField, QueryFilter as SDKQueryFilter, ForeignKey
+};
 
-/// Entity types that can be extended
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum EntityType {
-    Activity,
-    ManualEntry,
-    Category,
-}
+// Re-export SDK types for convenience
+pub use time_tracker_plugin_sdk::{EntityType, ExtensionType, SchemaChange, ModelField, ForeignKey};
 
-/// Types of extensions
-#[derive(Debug, Clone, PartialEq)]
-pub enum ExtensionType {
-    DatabaseSchema,
-    Model,
-    DataHook,
-    Query,
-    UIForm,
-}
-
-/// Schema change operations
-#[derive(Debug, Clone)]
-pub enum SchemaChange {
-    AddColumn {
-        table: String,
-        column: String,
-        column_type: String,
-        default: Option<String>,
-        foreign_key: Option<ForeignKey>,
-    },
-    AddIndex {
-        table: String,
-        index: String,
-        columns: Vec<String>,
-    },
-    AddForeignKey {
-        table: String,
-        column: String,
-        foreign_table: String,
-        foreign_column: String,
-    },
-}
-
-/// Foreign key definition
-#[derive(Debug, Clone)]
-pub struct ForeignKey {
-    pub table: String,
-    pub column: String,
-}
-
-/// Model field definition
-#[derive(Debug, Clone)]
-pub struct ModelField {
-    pub name: String,
-    pub type_: String,
-    pub optional: bool,
-}
-
-/// Activity hook for data processing
+/// Activity hook for data processing (backend-specific)
 pub struct ActivityHook {
     pub on_upsert: Box<dyn Fn(&mut Activity, &std::sync::Arc<Database>) -> Result<(), String> + Send + Sync>,
 }
 
-/// Query filter function
-pub type QueryFilterFn = Box<dyn Fn(Vec<Activity>, HashMap<String, serde_json::Value>) -> Result<Vec<Activity>, String> + Send + Sync>;
-
-/// Query filter
+/// Query filter (backend-specific wrapper around SDK QueryFilter)
 pub struct QueryFilter {
     pub name: String,
-    pub filter_fn: QueryFilterFn,
+    pub filter_fn: Box<dyn Fn(Vec<Activity>, HashMap<String, serde_json::Value>) -> Result<Vec<Activity>, String> + Send + Sync>,
 }
 
 /// Extension definition

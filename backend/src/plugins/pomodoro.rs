@@ -3,8 +3,8 @@
 //! Manages Pomodoro timer and focus sessions
 
 use crate::database::{Database, FocusSession};
-use crate::plugin_system::{Plugin, PluginInfo, PluginAPI};
-use crate::plugin_system::extensions::{EntityType, SchemaChange};
+use crate::plugin_system::PluginAPI;
+use time_tracker_plugin_sdk::{Plugin, PluginInfo, PluginAPIInterface};
 use std::sync::Arc;
 use serde_json;
 
@@ -33,7 +33,7 @@ impl Plugin for PomodoroPlugin {
         &self.info
     }
     
-    fn initialize(&mut self, api: &PluginAPI) -> Result<(), String> {
+    fn initialize(&mut self, api: &dyn PluginAPIInterface) -> Result<(), String> {
         // Note: focus_sessions table is already created in core database.rs
         // The plugin just uses the existing table structure
         

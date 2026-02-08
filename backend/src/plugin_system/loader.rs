@@ -194,6 +194,63 @@ impl PluginLoader {
     }
 }
 
-// Note: Dynamic library loading would require libloading crate
-// For now, we'll focus on the installation and manifest handling
-// Actual runtime loading will be implemented when we add libloading dependency
+    /// Load a plugin dynamically from its installed directory
+    /// Returns the loaded plugin instance ready for initialization
+    pub fn load_dynamic_plugin(
+        &self,
+        plugin_id: &str,
+    ) -> Result<Box<dyn time_tracker_plugin_sdk::Plugin>, String> {
+        use libloading::{Library, Symbol};
+        use time_tracker_plugin_sdk::{PluginCreateFn, Plugin};
+        
+        let plugin_dir = self.get_plugin_dir(plugin_id);
+        
+        // Determine library filename based on platform
+        let lib_name = if cfg!(target_os = "windows") {
+            format!("{}.dll", plugin_id.replace("-", "_"))
+        } else if cfg!(target_os = "macos") {
+            format!("lib{}.dylib", plugin_id.replace("-", "_"))
+        } else {
+            format!("lib{}.so", plugin_id.replace("-", "_"))
+        };
+        
+        let lib_path = plugin_dir.join(&lib_name);
+        
+        if !lib_path.exists() {
+            return Err(format!("Plugin library not found: {}", lib_path.display()));
+        }
+        
+        // Load the library
+        unsafe {
+            let lib = Library::new(&lib_path)
+                .map_err(|e| format!("Failed to load plugin library {}: {}", lib_path.display(), e))?;
+            
+            // Resolve the _plugin_create symbol
+            let create_fn: Symbol<PluginCreateFn> = lib.get(b"_plugin_create")
+                .map_err(|e| format!("Failed to resolve _plugin_create symbol: {}", e))?;
+            
+            // Call the function to create the plugin instance
+            let plugin_ptr = create_fn();
+            
+            if plugin_ptr.is_null() {
+                return Err("Plugin creation function returned null pointer".to_string());
+            }
+            
+            // Convert raw pointer to Box<dyn Plugin>
+            // Note: The library must be kept alive for the plugin to work
+            // We'll need to store the Library handle somewhere
+            // For now, we'll leak it (not ideal, but works for MVP)
+            std::mem::forget(lib);
+            
+            let plugin = unsafe { Box::from_raw(plugin_ptr) };
+            
+            Ok(plugin)
+        }
+    }
+}
+
+// Note: In a production implementation, we'd want to:
+// 1. Store Library handles to keep them loaded
+// 2. Implement proper cleanup on plugin unload
+// 3. Handle version compatibility checking
+// 4. Support hot-reloading (optional)

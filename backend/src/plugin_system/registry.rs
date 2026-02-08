@@ -4,35 +4,14 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use crate::database::Database;
 use crate::plugin_system::api::PluginAPI;
+use time_tracker_plugin_sdk::{Plugin, PluginInfo};
 
-/// Plugin metadata
-#[derive(Debug, Clone)]
-pub struct PluginInfo {
-    pub id: String,
-    pub name: String,
-    pub version: String,
-    pub description: Option<String>,
-    pub is_builtin: bool,
-}
-
-/// Plugin trait that all plugins must implement
-pub trait Plugin: Send + Sync {
-    /// Get plugin metadata
-    fn info(&self) -> &PluginInfo;
-    
-    /// Initialize the plugin
-    fn initialize(&mut self, api: &PluginAPI) -> Result<(), String>;
-    
-    /// Invoke a command on the plugin
-    fn invoke_command(&self, command: &str, params: serde_json::Value) -> Result<serde_json::Value, String>;
-    
-    /// Shutdown the plugin
-    fn shutdown(&self) -> Result<(), String>;
-}
+// Re-export SDK types for convenience
+pub use time_tracker_plugin_sdk::{Plugin as PluginTrait, PluginInfo};
 
 /// Registry for managing all loaded plugins
 pub struct PluginRegistry {
-    plugins: Arc<Mutex<HashMap<String, Box<dyn Plugin>>>>,
+    plugins: Arc<Mutex<HashMap<String, Box<dyn PluginTrait>>>>,
     db: Arc<Database>,
 }
 
@@ -46,7 +25,7 @@ impl PluginRegistry {
     }
     
     /// Register a plugin
-    pub fn register(&self, plugin: Box<dyn Plugin>) -> Result<(), String> {
+    pub fn register(&self, plugin: Box<dyn PluginTrait>) -> Result<(), String> {
         let info = plugin.info();
         let mut plugins = self.plugins.lock().map_err(|e| format!("Failed to lock plugin registry: {}", e))?;
         
@@ -59,7 +38,7 @@ impl PluginRegistry {
     }
     
     /// Get a plugin by ID
-    pub fn get(&self, plugin_id: &str) -> Option<Arc<dyn Plugin>> {
+    pub fn get(&self, plugin_id: &str) -> Option<Arc<dyn PluginTrait>> {
         let plugins = self.plugins.lock().ok()?;
         // Note: We can't return a reference to a trait object from a Mutex
         // This is a limitation - plugins will need to be accessed differently
