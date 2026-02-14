@@ -20,11 +20,7 @@ export function useSettings() {
         ...query.data,
         // Preserve frontend-only settings
         pollingInterval: currentSettings.pollingInterval ?? 5,
-        startMinimized: currentSettings.startMinimized ?? false,
-        showInTray: currentSettings.showInTray ?? true,
         theme: currentSettings.theme ?? 'system',
-        defaultCategory: currentSettings.defaultCategory ?? null,
-        shortIdleAsThinking: currentSettings.shortIdleAsThinking ?? true,
         darkMode: currentSettings.darkMode ?? false,
         enable_marketplace: query.data.enable_marketplace ?? true, // Default to true for new installations
       });

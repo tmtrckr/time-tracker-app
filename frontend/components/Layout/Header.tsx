@@ -1,10 +1,8 @@
-import { Plus, Download, Brain, Pause, Play, Menu, Timer } from 'lucide-react';
+import { Plus, Download, Brain, Pause, Play, Menu } from 'lucide-react';
 import { useMemo } from 'react';
 import { useStore } from '../../store';
 import DateRangeSelector from './DateRangeSelector';
 import { useStartThinkingMode, useStopThinkingMode, usePauseTracking, useResumeTracking } from '../../hooks/useTracker';
-// Pomodoro functionality is now provided by plugins
-import { formatTimerTime } from '../../utils/format';
 import { handleApiError, showSuccess } from '../../utils/toast';
 import { api } from '../../services/api';
 import { exportData } from '../../utils/export';
@@ -26,10 +24,6 @@ export default function Header({ onAddEntry, onMenuClick }: HeaderProps) {
   const pauseTracking = usePauseTracking();
   const resumeTracking = useResumeTracking();
   
-  // Pomodoro status is now provided by plugins
-  const pomodoroStatus = useStore((state) => state.pomodoroStatus) || { is_running: false, is_active: false, pomodoro_type: 'work' as const, remaining_sec: 0, total_sec: 0, session_id: null, started_at: null };
-  const pausePomodoro = () => {};
-  const resumePomodoro = () => {};
 
   // Find break category for pause functionality
   const breakCategoryId = useMemo(() => {
@@ -136,36 +130,6 @@ export default function Header({ onAddEntry, onMenuClick }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 flex-shrink-0">
-        {/* Pomodoro Timer - Compact View - только для маленьких экранов */}
-        {pomodoroStatus.is_running && (
-          <button
-            onClick={() => {
-              if (pomodoroStatus.is_active) {
-                pausePomodoro();
-              } else {
-                resumePomodoro();
-              }
-            }}
-            className={`lg:hidden flex items-center gap-1 sm:gap-2 whitespace-nowrap rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 transition-all duration-200 ${
-              pomodoroStatus.pomodoro_type === 'work'
-                ? 'bg-red-500 text-white shadow-md hover:bg-red-600 hover:shadow-lg'
-                : 'bg-green-500 text-white shadow-md hover:bg-green-600 hover:shadow-lg'
-            }`}
-            title={`${pomodoroStatus.pomodoro_type === 'work' ? 'Work' : 'Break'} session - ${pomodoroStatus.is_active ? 'Click to pause' : 'Click to resume'}`}
-          >
-            <Timer className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-            <span className="hidden md:inline font-medium text-sm sm:text-base font-mono">
-              {formatTimerTime(pomodoroStatus.remaining_sec)}
-            </span>
-            <span className="md:hidden font-medium text-xs font-mono">
-              {formatTimerTime(pomodoroStatus.remaining_sec)}
-            </span>
-            {pomodoroStatus.is_active && (
-              <span className="ml-1 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-white rounded-full animate-pulse"></span>
-            )}
-          </button>
-        )}
-
         {/* Thinking Mode Button */}
         <button
           onClick={handleThinkingMode}

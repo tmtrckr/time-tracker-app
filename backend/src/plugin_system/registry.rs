@@ -71,4 +71,17 @@ impl PluginRegistry {
         let plugins = self.plugins.lock().ok();
         plugins.map(|p| p.keys().cloned().collect()).unwrap_or_default()
     }
+    
+    /// Unregister a plugin by ID
+    /// This removes the plugin from the registry, allowing it to be unloaded
+    pub fn unregister(&self, plugin_id: &str) -> Result<(), String> {
+        let mut plugins = self.plugins.lock()
+            .map_err(|e| format!("Failed to lock plugin registry: {}", e))?;
+        
+        if plugins.remove(plugin_id).is_some() {
+            Ok(())
+        } else {
+            Err(format!("Plugin {} not found in registry", plugin_id))
+        }
+    }
 }

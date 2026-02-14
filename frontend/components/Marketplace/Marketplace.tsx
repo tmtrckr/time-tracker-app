@@ -29,11 +29,9 @@ export default function Marketplace() {
 
   useEffect(() => {
     if (settings) {
-      // Use plugin_registry_urls if available, otherwise fallback to plugin_registry_url or default
+      // Use plugin_registry_urls if available, otherwise use default
       if (settings.plugin_registry_urls && settings.plugin_registry_urls.length > 0) {
         setRegistryUrls([...settings.plugin_registry_urls]);
-      } else if (settings.plugin_registry_url) {
-        setRegistryUrls([settings.plugin_registry_url]);
       } else {
         setRegistryUrls(['https://raw.githubusercontent.com/tmtrckr/plugins-registry/main/registry.json']);
       }
@@ -90,8 +88,6 @@ export default function Marketplace() {
       await api.settings.updateSettings({
         ...currentSettings,
         plugin_registry_urls: registryUrls.length > 0 ? registryUrls : undefined,
-        // Clear legacy single URL if using multiple URLs
-        plugin_registry_url: registryUrls.length === 1 ? registryUrls[0] : undefined,
       });
       showSuccess('Registry URLs updated successfully');
       setShowRegistrySettings(false);

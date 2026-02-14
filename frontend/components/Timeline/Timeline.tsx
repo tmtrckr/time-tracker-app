@@ -1,14 +1,13 @@
 import { useMemo } from 'react';
 import { format } from 'date-fns';
 import { formatDuration, truncate } from '../../utils';
-import type { TimelineBlock, FocusSession } from '../../types';
+import type { TimelineBlock } from '../../types';
 
 interface TimelineProps {
   blocks: TimelineBlock[];
-  focusSessions?: FocusSession[];
 }
 
-export default function Timeline({ blocks, focusSessions = [] }: TimelineProps) {
+export default function Timeline({ blocks }: TimelineProps) {
   // Calculate timeline boundaries (9 AM to 6 PM by default, or actual bounds)
   const { startHour, endHour, hours } = useMemo(() => {
     if (blocks.length === 0) {
@@ -45,24 +44,6 @@ export default function Timeline({ blocks, focusSessions = [] }: TimelineProps) 
     };
   };
 
-  // Calculate position and width for focus sessions
-  const getSessionStyle = (session: FocusSession) => {
-    const sessionStart = new Date(session.started_at * 1000);
-    const sessionEnd = session.ended_at 
-      ? new Date(session.ended_at * 1000)
-      : new Date(session.started_at * 1000 + (session.duration_sec || 0) * 1000);
-    
-    const startMinutes = sessionStart.getHours() * 60 + sessionStart.getMinutes() - startHour * 60;
-    const endMinutes = sessionEnd.getHours() * 60 + sessionEnd.getMinutes() - startHour * 60;
-    
-    const left = Math.max(0, (startMinutes / totalMinutes) * 100);
-    const width = Math.min(100 - left, ((endMinutes - startMinutes) / totalMinutes) * 100);
-    
-    return {
-      left: `${left}%`,
-      width: `${Math.max(width, 0.5)}%`,
-    };
-  };
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transition-all duration-200 hover:shadow-md hover:shadow-gray-200/50 dark:hover:shadow-gray-900/50">
@@ -144,7 +125,7 @@ export default function Timeline({ blocks, focusSessions = [] }: TimelineProps) 
                 ? hexToRgba(baseColor, 0.5)
                 : baseColor;
               
-              // Border for categorized blocks (no billable border anymore)
+              // Border for categorized blocks
               const borderStyle = block.category 
                 ? `1px solid ${hexToRgba(baseColor, 0.25)}`
                 : 'none';
@@ -159,7 +140,7 @@ export default function Timeline({ blocks, focusSessions = [] }: TimelineProps) 
                     minWidth: '2px',
                     border: borderStyle,
                   }}
-                  title={`${block.app_name}: ${formatDuration(duration)}${block.domain ? ` (${block.domain})` : ''}${block.is_billable ? ' - Billable' : ''}`}
+                  title={`${block.app_name}: ${formatDuration(duration)}${block.domain ? ` (${block.domain})` : ''}`}
                 >
                   {/* Pattern overlay for idle - diagonal stripes */}
                   {block.is_idle && (
@@ -224,51 +205,6 @@ export default function Timeline({ blocks, focusSessions = [] }: TimelineProps) 
             })}
           </div>
 
-          {/* Billable indicator line */}
-          <div className="relative h-3 mt-2">
-            {/* Horizontal line in the middle */}
-            <div className="absolute top-1/2 left-0 right-0 h-px bg-yellow-500 dark:bg-yellow-400 opacity-50 transform -translate-y-1/2" />
-            {blocks
-              .filter(block => block.is_billable && !block.is_idle)
-              .map((block, index) => {
-                const style = getBlockStyle(block);
-                const duration = Math.round((block.end - block.start) / 1000);
-                return (
-                  <div
-                    key={`billable-${index}`}
-                    className="absolute top-0 bottom-0 rounded-full bg-yellow-400 dark:bg-yellow-500 opacity-80 cursor-pointer transition-all duration-200 hover:opacity-100 hover:scale-y-150"
-                    style={{
-                      ...style,
-                      minWidth: '1px',
-                    }}
-                    title={`Billable: ${block.app_name} - ${formatDuration(duration)}`}
-                  />
-                );
-              })}
-          </div>
-
-          {/* Pomodoro sessions indicator line */}
-          <div className="relative h-3 mt-2">
-            {/* Horizontal line in the middle */}
-            <div className="absolute top-1/2 left-0 right-0 h-px bg-red-500 dark:bg-red-400 opacity-50 transform -translate-y-1/2" />
-            {focusSessions
-              .filter(session => session.pomodoro_type === 'work' && session.ended_at !== null)
-              .map((session, index) => {
-                const style = getSessionStyle(session);
-                const duration = session.duration_sec || 0;
-                return (
-                  <div
-                    key={`pomodoro-${session.id}-${index}`}
-                    className="absolute top-0 bottom-0 rounded-full bg-red-400 dark:bg-red-500 opacity-80 cursor-pointer transition-all duration-200 hover:opacity-100 hover:scale-y-150"
-                    style={{
-                      ...style,
-                      minWidth: '1px',
-                    }}
-                    title={`Pomodoro: ${formatDuration(duration)}`}
-                  />
-                );
-              })}
-          </div>
 
           {/* Legend */}
           {Array.from(new Set(blocks.map((b) => b.category?.name).filter(Boolean))).length > 0 && (

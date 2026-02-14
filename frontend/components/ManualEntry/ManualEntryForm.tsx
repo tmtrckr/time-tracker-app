@@ -16,12 +16,8 @@ interface ManualEntryFormProps {
 const ManualEntryForm: React.FC<ManualEntryFormProps> = ({ isOpen, onClose, editEntry }) => {
   const { categories } = useStore();
   const { data: pinnedCategories = [] } = usePinnedCategories();
-  // Projects and tasks are now handled by plugins
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(editEntry?.project_id ?? null);
-  const [taskId, setTaskId] = useState<number | null>(editEntry?.task_id ?? null);
   
   const [description, setDescription] = useState(editEntry?.description || '');
-  const [project, setProject] = useState(editEntry?.project || '');
   const [categoryId, setCategoryId] = useState<number | undefined>(editEntry?.category_id ?? undefined);
   
   // Set default category if not set and pinned categories available
@@ -65,8 +61,7 @@ const ManualEntryForm: React.FC<ManualEntryFormProps> = ({ isOpen, onClose, edit
         category_id: categoryId ?? null,
         started_at: Math.floor(startedAt.getTime() / 1000),
         ended_at: Math.floor(endedAt.getTime() / 1000),
-        project_id: selectedProjectId ?? null,
-        task_id: taskId ?? null,
+        // Плагины должны обновлять эти поля через call_db_method после создания/обновления записи
       };
       
       if (editEntry?.id) {
@@ -170,39 +165,6 @@ const ManualEntryForm: React.FC<ManualEntryFormProps> = ({ isOpen, onClose, edit
                          focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
-          
-          {/* Project */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Project (optional)
-            </label>
-            <select
-              value={selectedProjectId || ''}
-              onChange={(e) => {
-                const pid = e.target.value ? Number(e.target.value) : null;
-                setSelectedProjectId(pid);
-                setTaskId(null); // Reset task when project changes
-              }}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg 
-                         bg-white dark:bg-gray-700 text-gray-900 dark:text-white
-                         focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              <option value="">Select project</option>
-              {/* Projects are now provided by plugins */}
-            </select>
-            {/* Legacy project text field for backward compatibility */}
-            <input
-              type="text"
-              value={project}
-              onChange={(e) => setProject(e.target.value)}
-              placeholder="Or enter project name manually"
-              className="w-full mt-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg 
-                         bg-white dark:bg-gray-700 text-gray-900 dark:text-white
-                         focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-          </div>
-          
-          {/* Task - Tasks are now provided by plugins */}
           
           {/* Category */}
           <div>

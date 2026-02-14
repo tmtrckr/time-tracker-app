@@ -200,257 +200,138 @@ impl PluginAPIInterface for PluginAPI {
     }
     
     fn call_db_method(&self, method: &str, params: serde_json::Value) -> Result<serde_json::Value, String> {
-        // Route database method calls to the appropriate Database method
-        // This allows plugins to access database without direct Database dependency
+        // Route database method calls to the appropriate handler
+        let params_map = params.as_object().ok_or("Params must be an object")?;
+        
         match method {
-            // Project methods
-            "create_project" => {
-                let name = params["name"].as_str().ok_or("Missing name")?.to_string();
-                let client_name = params["client_name"].as_str().map(|s| s.to_string());
-                let color = params["color"].as_str().unwrap_or("#888888").to_string();
-                let is_billable = params["is_billable"].as_bool().unwrap_or(false);
-                let hourly_rate = params["hourly_rate"].as_f64().unwrap_or(0.0);
-                let budget_hours = params["budget_hours"].as_f64();
-                
-                let id = self.db.create_project(
+            // Category methods
+            "create_category" => {
+                let name = params_map["name"].as_str().ok_or("Missing name")?.to_string();
+                let color = params_map["color"].as_str().unwrap_or("#888888").to_string();
+                let icon = params_map["icon"].as_str().map(|s| s.to_string());
+                let is_productive = params_map["is_productive"].as_bool();
+                let sort_order = params_map["sort_order"].as_i64().unwrap_or(0);
+                let is_system = params_map["is_system"].as_bool().unwrap_or(false);
+                let is_pinned = params_map["is_pinned"].as_bool().unwrap_or(false);
+
+                let id = self.db.create_category_core(
                     &name,
-                    client_name.as_deref(),
                     &color,
-                    is_billable,
-                    hourly_rate,
-                    budget_hours,
+                    icon.as_deref(),
+                    is_productive,
+                    sort_order,
+                    is_system,
+                    is_pinned,
                 ).map_err(|e| e.to_string())?;
-                
-                let project = self.db.get_project_by_id(id)
-                    .map_err(|e| e.to_string())?
-                    .ok_or_else(|| "Failed to retrieve created project".to_string())?;
-                
-                Ok(serde_json::to_value(project).map_err(|e| e.to_string())?)
+
+                let categories = self.db.get_categories().map_err(|e| e.to_string())?;
+                let category = categories.into_iter()
+                    .find(|c| c.id == id)
+                    .ok_or_else(|| "Failed to retrieve created category".to_string())?;
+                Ok(serde_json::to_value(category).map_err(|e| e.to_string())?)
             }
-            "get_projects" => {
-                let include_archived = params["include_archived"].as_bool().unwrap_or(false);
-                let projects = self.db.get_projects(include_archived)
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::to_value(projects).map_err(|e| e.to_string())?)
-            }
-            "get_project_by_id" => {
-                let id = params["id"].as_i64().ok_or("Missing id")?;
-                let project = self.db.get_project_by_id(id)
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::to_value(project).map_err(|e| e.to_string())?)
-            }
-            "update_project" => {
-                let id = params["id"].as_i64().ok_or("Missing id")?;
-                let name = params["name"].as_str().ok_or("Missing name")?.to_string();
-                let client_name = params["client_name"].as_str().map(|s| s.to_string());
-                let color = params["color"].as_str().unwrap_or("#888888").to_string();
-                let is_billable = params["is_billable"].as_bool().unwrap_or(false);
-                let hourly_rate = params["hourly_rate"].as_f64().unwrap_or(0.0);
-                let budget_hours = params["budget_hours"].as_f64();
-                let is_archived = params["is_archived"].as_bool();
-                
-                self.db.update_project(
+            "update_category" => {
+                let id = params_map["id"].as_i64().ok_or("Missing id")?;
+                let name = params_map["name"].as_str().ok_or("Missing name")?.to_string();
+                let color = params_map["color"].as_str().unwrap_or("#888888").to_string();
+                let icon = params_map["icon"].as_str().map(|s| s.to_string());
+                let is_productive = params_map["is_productive"].as_bool();
+                let sort_order = params_map["sort_order"].as_i64().unwrap_or(0);
+                let is_pinned = params_map["is_pinned"].as_bool();
+
+                let current = self.db.get_categories().map_err(|e| e.to_string())?
+                    .into_iter()
+                    .find(|c| c.id == id)
+                    .ok_or_else(|| "Category not found".to_string())?;
+
+                let is_pinned_bool = is_pinned.unwrap_or(current.is_pinned);
+
+                self.db.update_category_core(
                     id,
                     &name,
-                    client_name.as_deref(),
                     &color,
-                    is_billable,
-                    hourly_rate,
-                    budget_hours,
-                    is_archived,
+                    icon.as_deref(),
+                    is_productive.or(current.is_productive),
+                    sort_order,
+                    is_pinned_bool,
                 ).map_err(|e| e.to_string())?;
-                
-                let project = self.db.get_project_by_id(id)
-                    .map_err(|e| e.to_string())?
-                    .ok_or_else(|| "Project not found".to_string())?;
-                
-                Ok(serde_json::to_value(project).map_err(|e| e.to_string())?)
+
+                let categories = self.db.get_categories().map_err(|e| e.to_string())?;
+                let category = categories.into_iter()
+                    .find(|c| c.id == id)
+                    .ok_or_else(|| "Category not found".to_string())?;
+                Ok(serde_json::to_value(category).map_err(|e| e.to_string())?)
             }
-            "delete_project" => {
-                let id = params["id"].as_i64().ok_or("Missing id")?;
-                self.db.delete_project(id).map_err(|e| e.to_string())?;
+            "get_categories" => {
+                let categories = self.db.get_categories().map_err(|e| e.to_string())?;
+                Ok(serde_json::to_value(categories).map_err(|e| e.to_string())?)
+            }
+            "delete_category" => {
+                let id = params_map["id"].as_i64().ok_or("Missing id")?;
+                self.db.delete_category(id).map_err(|e| e.to_string())?;
                 Ok(serde_json::json!({}))
             }
-            // Task methods
-            "create_task" => {
-                let project_id = params["project_id"].as_i64().ok_or("Missing project_id")?;
-                let name = params["name"].as_str().ok_or("Missing name")?.to_string();
-                let description = params["description"].as_str().map(|s| s.to_string());
-                
-                let id = self.db.create_task(project_id, &name, description.as_deref())
-                    .map_err(|e| e.to_string())?;
-                
-                let task = self.db.get_task_by_id(id)
-                    .map_err(|e| e.to_string())?
-                    .ok_or_else(|| "Failed to retrieve created task".to_string())?;
-                
-                Ok(serde_json::to_value(task).map_err(|e| e.to_string())?)
-            }
-            "get_tasks" => {
-                let project_id = params["project_id"].as_i64();
-                let include_archived = params["include_archived"].as_bool().unwrap_or(false);
-                let tasks = self.db.get_tasks(project_id, include_archived)
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::to_value(tasks).map_err(|e| e.to_string())?)
-            }
-            "get_task_by_id" => {
-                let id = params["id"].as_i64().ok_or("Missing id")?;
-                let task = self.db.get_task_by_id(id)
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::to_value(task).map_err(|e| e.to_string())?)
-            }
-            "update_task" => {
-                let id = params["id"].as_i64().ok_or("Missing id")?;
-                let name = params["name"].as_str().ok_or("Missing name")?.to_string();
-                let description = params["description"].as_str().map(|s| s.to_string());
-                let is_archived = params["is_archived"].as_bool();
-                
-                self.db.update_task(id, &name, description.as_deref(), is_archived)
-                    .map_err(|e| e.to_string())?;
-                
-                let task = self.db.get_task_by_id(id)
-                    .map_err(|e| e.to_string())?
-                    .ok_or_else(|| "Task not found".to_string())?;
-                
-                Ok(serde_json::to_value(task).map_err(|e| e.to_string())?)
-            }
-            "delete_task" => {
-                let id = params["id"].as_i64().ok_or("Missing id")?;
-                self.db.delete_task(id).map_err(|e| e.to_string())?;
-                Ok(serde_json::json!({}))
-            }
-            // Billing methods
-            "get_billable_hours" => {
-                let start = params["start"].as_i64().ok_or("Missing start")?;
-                let end = params["end"].as_i64().ok_or("Missing end")?;
-                let hours = self.db.get_billable_hours(start, end)
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::json!(hours))
-            }
-            "get_billable_revenue" => {
-                let start = params["start"].as_i64().ok_or("Missing start")?;
-                let end = params["end"].as_i64().ok_or("Missing end")?;
-                let revenue = self.db.get_billable_revenue(start, end)
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::json!(revenue))
-            }
-            // Pomodoro methods
-            "create_focus_session" => {
-                let pomodoro_type = params["pomodoro_type"].as_str().unwrap_or("work").to_string();
-                let project_id = params["project_id"].as_i64();
-                let task_id = params["task_id"].as_i64();
-                
-                let id = self.db.create_focus_session(&pomodoro_type, project_id, task_id)
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::json!(id))
-            }
-            "update_focus_session" => {
-                let id = params["id"].as_i64().ok_or("Missing id")?;
-                let duration_sec = params["duration_sec"].as_i64().ok_or("Missing duration_sec")?;
-                let completed = params["completed"].as_bool().unwrap_or(false);
-                
-                self.db.update_focus_session(id, duration_sec, completed)
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::json!({}))
-            }
-            "get_completed_work_sessions_count_today" => {
-                let count = self.db.get_completed_work_sessions_count_today()
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::json!(count))
-            }
-            "get_focus_sessions" => {
-                let start = params["start"].as_i64().ok_or("Missing start")?;
-                let end = params["end"].as_i64().ok_or("Missing end")?;
-                let sessions = self.db.get_focus_sessions(start, end)
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::to_value(sessions).map_err(|e| e.to_string())?)
-            }
-            "get_active_focus_session" => {
-                let session = self.db.get_active_focus_session()
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::to_value(session).map_err(|e| e.to_string())?)
-            }
-            "delete_focus_session" => {
-                let id = params["id"].as_i64().ok_or("Missing id")?;
-                self.db.delete_focus_session(id).map_err(|e| e.to_string())?;
-                Ok(serde_json::json!({}))
-            }
-            // Goals methods
-            "create_goal" => {
-                let goal_type = params["goal_type"].as_str().ok_or("Missing goal_type")?.to_string();
-                let target_seconds = params["target_seconds"].as_i64().ok_or("Missing target_seconds")?;
-                let category_id = params["category_id"].as_i64();
-                let project_id = params["project_id"].as_i64();
-                let start_date = params["start_date"].as_i64().ok_or("Missing start_date")?;
-                let end_date = params["end_date"].as_i64();
-                let name = params["name"].as_str().map(|s| s.to_string());
-                
-                let id = self.db.create_goal(
-                    &goal_type,
-                    target_seconds,
+            // Manual entry methods
+            "create_manual_entry" => {
+                let description = params_map["description"].as_str().map(|s| s.to_string());
+                let category_id = params_map["category_id"].as_i64();
+                let started_at = params_map["started_at"].as_i64().ok_or("Missing started_at")?;
+                let ended_at = params_map["ended_at"].as_i64().ok_or("Missing ended_at")?;
+
+                let id = self.db.add_manual_entry(
+                    description.as_deref(),
                     category_id,
-                    project_id,
-                    start_date,
-                    end_date,
-                    name.as_deref(),
+                    started_at,
+                    ended_at,
                 ).map_err(|e| e.to_string())?;
-                Ok(serde_json::json!(id))
-            }
-            "get_goals" => {
-                let active_only = params["active_only"].as_bool().unwrap_or(false);
-                let goals = self.db.get_goals(active_only)
+
+                let entries = self.db.get_manual_entries(started_at.saturating_sub(1), ended_at.saturating_add(1))
                     .map_err(|e| e.to_string())?;
-                Ok(serde_json::to_value(goals).map_err(|e| e.to_string())?)
+                let entry = entries.into_iter()
+                    .find(|e| e.id == id)
+                    .ok_or_else(|| "Failed to retrieve created entry".to_string())?;
+                Ok(serde_json::to_value(entry).map_err(|e| e.to_string())?)
             }
-            "update_goal" => {
-                let id = params["id"].as_i64().ok_or("Missing id")?;
-                let goal_type = params["goal_type"].as_str().ok_or("Missing goal_type")?.to_string();
-                let target_seconds = params["target_seconds"].as_i64().ok_or("Missing target_seconds")?;
-                let category_id = params["category_id"].as_i64();
-                let project_id = params["project_id"].as_i64();
-                let start_date = params["start_date"].as_i64().ok_or("Missing start_date")?;
-                let end_date = params["end_date"].as_i64();
-                let active = params["active"].as_bool().unwrap_or(true);
-                let name = params["name"].as_str().map(|s| s.to_string());
-                
-                self.db.update_goal(
+            "update_manual_entry" => {
+                let id = params_map["id"].as_i64().ok_or("Missing id")?;
+                let description = params_map["description"].as_str().map(|s| s.to_string());
+                let category_id = params_map["category_id"].as_i64();
+                let started_at = params_map["started_at"].as_i64().ok_or("Missing started_at")?;
+                let ended_at = params_map["ended_at"].as_i64().ok_or("Missing ended_at")?;
+
+                let current = self.db.get_manual_entries(0, i64::MAX).map_err(|e| e.to_string())?
+                    .into_iter()
+                    .find(|e| e.id == id)
+                    .ok_or_else(|| "Manual entry not found".to_string())?;
+
+                let category_id = category_id.or(current.category_id);
+                let description_ref = description
+                    .as_deref()
+                    .or(current.description.as_deref());
+                self.db.update_manual_entry(
                     id,
-                    &goal_type,
-                    target_seconds,
+                    description_ref,
                     category_id,
-                    project_id,
-                    start_date,
-                    end_date,
-                    active,
-                    name.as_deref(),
+                    started_at,
+                    ended_at,
                 ).map_err(|e| e.to_string())?;
-                
-                // Return updated goal by finding it in the list
-                let goals = self.db.get_goals(false)
-                    .map_err(|e| e.to_string())?;
-                let goal = goals.into_iter()
-                    .find(|g| g.id == id)
-                    .ok_or_else(|| "Goal not found".to_string())?;
-                
-                Ok(serde_json::to_value(goal).map_err(|e| e.to_string())?)
+
+                let entries = self.db.get_manual_entries(0, i64::MAX).map_err(|e| e.to_string())?;
+                let entry = entries.into_iter()
+                    .find(|e| e.id == id)
+                    .ok_or_else(|| "Manual entry not found".to_string())?;
+                Ok(serde_json::to_value(entry).map_err(|e| e.to_string())?)
             }
-            "delete_goal" => {
-                let id = params["id"].as_i64().ok_or("Missing id")?;
-                self.db.delete_goal(id).map_err(|e| e.to_string())?;
+            "get_manual_entries" => {
+                let start = params_map["start"].as_i64().ok_or("Missing start")?;
+                let end = params_map["end"].as_i64().ok_or("Missing end")?;
+                let entries = self.db.get_manual_entries(start, end).map_err(|e| e.to_string())?;
+                Ok(serde_json::to_value(entries).map_err(|e| e.to_string())?)
+            }
+            "delete_manual_entry" => {
+                let id = params_map["id"].as_i64().ok_or("Missing id")?;
+                self.db.delete_manual_entry(id).map_err(|e| e.to_string())?;
                 Ok(serde_json::json!({}))
-            }
-            "get_goal_progress" => {
-                let goal_id = params["goal_id"].as_i64().ok_or("Missing goal_id")?;
-                let start = params["start"].as_i64().ok_or("Missing start")?;
-                let end = params["end"].as_i64().ok_or("Missing end")?;
-                let progress = self.db.get_goal_progress(goal_id, start, end)
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::to_value(progress).map_err(|e| e.to_string())?)
-            }
-            "check_goal_alerts" => {
-                let alerts = self.db.check_goal_alerts()
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::to_value(alerts).map_err(|e| e.to_string())?)
             }
             _ => Err(format!("Unknown database method: {}", method))
         }

@@ -32,7 +32,7 @@ pub trait PluginAPIInterface: Send + Sync {
     
     /// Call a database method by name with JSON parameters
     /// This allows plugins to access database functionality without direct Database dependency
-    /// Method names match Database methods (e.g., "create_project", "get_projects")
+    /// Method names match Database methods (e.g., "create_category", "get_categories")
     /// Parameters are passed as a JSON object, return value is JSON
     fn call_db_method(&self, method: &str, params: serde_json::Value) -> Result<serde_json::Value, String>;
 }

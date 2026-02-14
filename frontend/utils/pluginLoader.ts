@@ -33,12 +33,10 @@ export async function loadPluginFrontend(
   api: PluginFrontendAPI
 ): Promise<void> {
   if (loadedPlugins.has(pluginId)) {
-    console.warn(`Plugin ${pluginId} frontend already loaded`);
     return;
   }
 
   if (!manifest.frontend?.entry) {
-    console.log(`Plugin ${pluginId} has no frontend entry point`);
     return;
   }
 
@@ -61,7 +59,8 @@ export async function loadPluginFrontend(
     const modulePath = `/plugins/${normalizedAuthor}/${pluginId}/frontend/${entryPath}`;
     
     // Dynamic import of the plugin module
-    const module = await import(/* @vite-ignore */ modulePath);
+    // Remove @vite-ignore to allow Vite to process the module and resolve dependencies
+    const module = await import(modulePath);
     
     if (!module.default || typeof module.default.initialize !== 'function') {
       throw new Error(`Plugin ${pluginId} frontend module does not export a valid initialize function`);
@@ -74,8 +73,6 @@ export async function loadPluginFrontend(
     
     // Store the loaded plugin
     loadedPlugins.set(pluginId, pluginModule);
-    
-    console.log(`Loaded plugin frontend: ${pluginId}`);
   } catch (error) {
     console.error(`Failed to load plugin frontend ${pluginId}:`, error);
     // Don't throw - allow app to continue without this plugin's UI

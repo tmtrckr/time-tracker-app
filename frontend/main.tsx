@@ -62,11 +62,10 @@ const updateSplashStatus = (status: string) => {
   }
 };
 
-// Fallback: hide splash screen after max 8 seconds (in case something goes wrong)
+// Fallback: hide splash screen after max 4 seconds (in case settings never load)
 let maxSplashTime: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-  console.warn('Splash screen timeout - forcing hide');
   hideSplashScreen();
-}, 8000);
+}, 4000);
 
 // Hide splash screen and show app when React is ready
 const hideSplashScreen = () => {

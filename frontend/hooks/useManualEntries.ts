@@ -25,8 +25,6 @@ export function useCreateManualEntry() {
     mutationFn: (entry: {
       description: string | null;
       category_id: number | null;
-      project_id?: number | null;
-      task_id?: number | null;
       started_at: number;
       ended_at: number;
     }) => api.manualEntries.createManualEntry(entry),
@@ -48,8 +46,6 @@ export function useUpdateManualEntry() {
       id: number;
       description: string | null;
       category_id: number | null;
-      project_id?: number | null;
-      task_id?: number | null;
       started_at: number;
       ended_at: number;
     }) => api.manualEntries.updateManualEntry(entry),

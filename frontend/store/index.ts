@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Activity, Category, Settings, ManualEntry, DateRange, DateRangePreset, PomodoroStatus } from '../types';
+import type { Activity, Category, Settings, ManualEntry, DateRange, DateRangePreset } from '../types';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 
-type SettingsTab = 'general' | 'categories' | 'rules' | 'projects' | 'tasks' | 'goals' | 'about';
+type SettingsTab = 'general' | 'categories' | 'rules' | 'about';
 
-export type View = 'dashboard' | 'history' | 'reports' | 'settings' | 'pomodoro' | 'marketplace';
+export type View = 'dashboard' | 'history' | 'reports' | 'settings' | 'marketplace';
 
 /** Shared helper: compute date range from preset (and optional custom range for preset 'custom'). */
 export function presetToDateRange(preset: DateRangePreset, now: Date, customRange?: DateRange): DateRange {
@@ -42,14 +42,6 @@ interface AppState {
   manualEntries: ManualEntry[];
   settings: Settings;
 
-  // Pomodoro counter
-  pomodoroWorkSessionsCount: number;
-  lastPomodoroCycleDate: string | null;
-  consecutiveWorkCount: number; // Count of consecutive work sessions
-  consecutiveBreakCount: number; // Count of consecutive break sessions
-  
-  // Pomodoro status (shared across all components)
-  pomodoroStatus: PomodoroStatus | null;
 
   // Settings navigation
   pendingRuleData: { rule_type: 'app_name' | 'window_title' | 'domain', pattern: string, category_id?: number } | null;
@@ -68,13 +60,6 @@ interface AppState {
   setManualEntries: (entries: ManualEntry[]) => void;
   setSettings: (settings: Settings) => void;
   updateSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
-  incrementPomodoroWorkSessions: () => void;
-  resetPomodoroWorkSessions: () => void;
-  syncPomodoroCounterFromDB: () => Promise<void>;
-  incrementConsecutiveWork: () => void;
-  incrementConsecutiveBreak: () => void;
-  resetConsecutiveSessions: () => void;
-  setPomodoroStatus: (status: PomodoroStatus | null) => void;
   setPendingRuleData: (data: { rule_type: 'app_name' | 'window_title' | 'domain', pattern: string, category_id?: number } | null) => void;
   setSettingsActiveTab: (tab: SettingsTab | null) => void;
   setScrollToIdlePromptThreshold: (scroll: boolean) => void;
@@ -88,26 +73,13 @@ const defaultSettings: Settings = {
   show_notifications: true,
   date_format: 'YYYY-MM-DD',
   time_format: '24h',
-  // Pomodoro settings
-  pomodoro_work_duration_minutes: 25,
-  pomodoro_short_break_minutes: 5,
-  pomodoro_long_break_minutes: 15,
-  pomodoro_sessions_until_long_break: 4,
-  pomodoro_auto_transition_delay_seconds: 15,
-  pomodoro_work_duration_seconds: 1500, // 25 minutes
-  pomodoro_short_break_seconds: 300, // 5 minutes
-  pomodoro_long_break_seconds: 900, // 15 minutes
-  // Legacy properties for compatibility
-  idleThreshold: 120, // seconds
-  pollingInterval: 5, // seconds
-  idlePromptThreshold: 300, // seconds
-  autoStart: false,
-  startMinimized: false,
-  showInTray: true,
-  theme: 'system',
-  defaultCategory: null,
-  shortIdleAsThinking: true,
-  darkMode: false,
+  // Frontend-only properties (not synced with backend)
+  idleThreshold: 120, // seconds - convenience property for UI
+  pollingInterval: 5, // seconds - frontend-only setting
+  idlePromptThreshold: 300, // seconds - convenience property for UI
+  autoStart: false, // alias for autostart
+  theme: 'system', // frontend-only theme setting
+  darkMode: false, // frontend-only dark mode setting
   enable_marketplace: true, // Default to true for new installations
 };
 
@@ -130,14 +102,6 @@ const store = create<AppState>()(
       manualEntries: [],
       settings: defaultSettings,
 
-      // Pomodoro counter
-      pomodoroWorkSessionsCount: 0,
-      lastPomodoroCycleDate: null,
-      consecutiveWorkCount: 0,
-      consecutiveBreakCount: 0,
-      
-      // Pomodoro status (not persisted - runtime only)
-      pomodoroStatus: null,
 
       // Settings navigation (not persisted - runtime only)
       pendingRuleData: null,
@@ -187,60 +151,6 @@ const store = create<AppState>()(
           settings: { ...state.settings, [key]: value },
         })),
 
-      incrementPomodoroWorkSessions: () =>
-        set((state) => ({
-          pomodoroWorkSessionsCount: state.pomodoroWorkSessionsCount + 1,
-        })),
-
-      resetPomodoroWorkSessions: () =>
-        set({
-          pomodoroWorkSessionsCount: 0,
-          lastPomodoroCycleDate: new Date().toISOString().split('T')[0],
-        }),
-
-      incrementConsecutiveWork: () =>
-        set((state) => ({
-          consecutiveWorkCount: state.consecutiveWorkCount + 1,
-        })),
-
-      incrementConsecutiveBreak: () =>
-        set((state) => ({
-          consecutiveBreakCount: state.consecutiveBreakCount + 1,
-        })),
-
-      resetConsecutiveSessions: () =>
-        set({
-          consecutiveWorkCount: 0,
-          consecutiveBreakCount: 0,
-        }),
-
-      syncPomodoroCounterFromDB: async () => {
-        try {
-          const { api } = await import('../services/api');
-          const count = await api.pomodoro.getCompletedWorkSessionsCountToday();
-          const today = new Date().toISOString().split('T')[0];
-          
-          set((state) => {
-            // Если дата последнего сброса != сегодня, сбросить счетчики
-            if (state.lastPomodoroCycleDate !== today) {
-              return {
-                pomodoroWorkSessionsCount: count,
-                lastPomodoroCycleDate: today,
-                consecutiveWorkCount: 0,
-                consecutiveBreakCount: 0,
-              };
-            }
-            // Использовать значение из БД если оно отличается
-            return {
-              pomodoroWorkSessionsCount: count,
-            };
-          });
-        } catch (error) {
-          // Silently handle error - counter sync failed
-        }
-      },
-      
-      setPomodoroStatus: (status) => set({ pomodoroStatus: status }),
       
       setPendingRuleData: (data) => set({ pendingRuleData: data }),
       
@@ -255,8 +165,6 @@ const store = create<AppState>()(
         isTrackingPaused: state.isTrackingPaused,
         dateRangePreset: state.dateRangePreset,
         selectedDateRange: state.selectedDateRange,
-        pomodoroWorkSessionsCount: state.pomodoroWorkSessionsCount,
-        lastPomodoroCycleDate: state.lastPomodoroCycleDate,
         // Don't persist consecutive counters - they should reset on app restart
         // consecutiveWorkCount: state.consecutiveWorkCount,
         // consecutiveBreakCount: state.consecutiveBreakCount,

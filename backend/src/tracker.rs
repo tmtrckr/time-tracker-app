@@ -20,30 +20,18 @@ fn extract_domain(app_name: &str, window_title: Option<&str>) -> Option<String> 
     let title = window_title?;
     
     // Pattern 1: URL in title like "https://example.com/page - Browser"
-    if let Some(url_start) = title.find("http://") {
-        let url_part = &title[url_start..];
-        if let Some(url_end) = url_part.find(|c: char| c == ' ' || c == '-' || c == '|') {
-            let url = &url_part[..url_end];
-            if let Some(domain) = extract_domain_from_url(url) {
-                return Some(domain);
-            }
-        } else {
-            if let Some(domain) = extract_domain_from_url(url_part) {
-                return Some(domain);
-            }
-        }
-    }
-    
-    if let Some(url_start) = title.find("https://") {
-        let url_part = &title[url_start..];
-        if let Some(url_end) = url_part.find(|c: char| c == ' ' || c == '-' || c == '|') {
-            let url = &url_part[..url_end];
-            if let Some(domain) = extract_domain_from_url(url) {
-                return Some(domain);
-            }
-        } else {
-            if let Some(domain) = extract_domain_from_url(url_part) {
-                return Some(domain);
+    for protocol in ["http://", "https://"] {
+        if let Some(url_start) = title.find(protocol) {
+            let url_part = &title[url_start..];
+            if let Some(url_end) = url_part.find(|c: char| c == ' ' || c == '-' || c == '|') {
+                let url = &url_part[..url_end];
+                if let Some(domain) = extract_domain_from_url(url) {
+                    return Some(domain);
+                }
+            } else {
+                if let Some(domain) = extract_domain_from_url(url_part) {
+                    return Some(domain);
+                }
             }
         }
     }
@@ -132,17 +120,11 @@ pub struct Tracker {
     paused: Arc<AtomicBool>,
     idle_threshold_secs: Arc<Mutex<u64>>,
     prompt_threshold_secs: Arc<Mutex<u64>>,
-    active_project_id: Arc<Mutex<Option<i64>>>,
-    active_task_id: Arc<Mutex<Option<i64>>>,
 }
 
 impl Tracker {
     /// Create a new tracker instance
-    pub fn new(
-        db: Arc<Database>,
-        active_project_id: Arc<Mutex<Option<i64>>>,
-        active_task_id: Arc<Mutex<Option<i64>>>,
-    ) -> Self {
+    pub fn new(db: Arc<Database>) -> Self {
         Self {
             db,
             window_tracker: WindowTracker::new(),
@@ -151,8 +133,6 @@ impl Tracker {
             paused: Arc::new(AtomicBool::new(false)),
             idle_threshold_secs: Arc::new(Mutex::new(120)), // 2 minutes default
             prompt_threshold_secs: Arc::new(Mutex::new(300)), // 5 minutes default
-            active_project_id,
-            active_task_id,
         }
     }
 
@@ -211,8 +191,6 @@ impl Tracker {
         let running = Arc::clone(&self.running);
         let paused = Arc::clone(&self.paused);
         let db = Arc::clone(&self.db);
-        let active_project_id = Arc::clone(&self.active_project_id);
-        let active_task_id = Arc::clone(&self.active_task_id);
         let idle_threshold = Arc::clone(&self.idle_threshold_secs);
         let idle_monitor = Arc::clone(&self.idle_monitor);
 
@@ -273,17 +251,11 @@ impl Tracker {
                 // Get active window info
                 if let Some(window_info) = window_tracker.get_active_window() {
                     let domain = extract_domain(&window_info.app_name, window_info.title.as_deref());
-                    // Get active project and task from shared state
-                    let active_project = active_project_id.lock().unwrap().clone();
-                    let active_task = active_task_id.lock().unwrap().clone();
-                    
                     if let Err(e) = db.upsert_activity(
                         &window_info.app_name,
                         window_info.title.as_deref(),
                         domain.as_deref(),
                         now,
-                        active_project, // Use active project
-                        active_task,    // Use active task
                     ) {
                         eprintln!("Failed to record activity: {}", e);
                     }

@@ -10,7 +10,7 @@ import Timeline from '../Timeline/Timeline';
 import Insights from './Insights';
 import DailyTrend from './DailyTrend';
 import TopWebsites from './TopWebsites';
-import LoadingSpinner from '../Common/LoadingSpinner';
+import { SkeletonCard } from '../Common/SkeletonLoader';
 import { ErrorBoundary } from '../Common/ErrorBoundary';
 import type { TimelineBlock, CategoryStats, AppStats, Category } from '../../types';
 import type { PluginDashboardWidget } from '../../types/pluginFrontend';
@@ -113,7 +113,7 @@ export default function Dashboard() {
       const total = rangeStats.total_seconds;
       const productive = rangeStats.productive_seconds;
       const minimalCategory = (id: number, name: string, color: string): Category =>
-        ({ id, name, color, icon: '', is_productive: null, is_billable: null, hourly_rate: null, sort_order: 0 });
+        ({ id, name, color, icon: '', is_productive: null, sort_order: 0 });
       const categories: CategoryStats[] = rangeStats.category_breakdown.map((row) => ({
         category: minimalCategory(row.category_id, row.category_name, row.color),
         duration_sec: row.seconds,
@@ -156,23 +156,14 @@ export default function Dashboard() {
         ? categories.find(c => c.id === activity.category_id) || null
         : null;
       
-      // Calculate billable status from category
-      let is_billable = false;
-      if (category?.is_billable === true) {
-        is_billable = true;
-      }
-      
       return {
         start: activity.started_at * 1000, // Convert to milliseconds
         end: (activity.started_at + activity.duration_sec) * 1000,
         app_name: activity.app_name,
         domain: activity.domain,
         category: category,
-        project: null, // Projects are now handled by plugins
-        task: null, // Tasks are now handled by plugins
         is_idle: activity.is_idle,
         is_manual: false,
-        is_billable: is_billable,
       };
     });
   }, [activities, categories]);
@@ -187,8 +178,20 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-32">
-        <LoadingSpinner />
+      <div className="space-y-4 sm:space-y-6 lg:space-y-8 animate-pulse">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+          <SkeletonCard />
+          <SkeletonCard className="lg:col-span-2" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+        <SkeletonCard />
       </div>
     );
   }
@@ -275,7 +278,7 @@ export default function Dashboard() {
       </ErrorBoundary>
 
       {/* Timeline */}
-      {timelineBlocks.length > 0 && <Timeline blocks={timelineBlocks} focusSessions={[]} />}
+      {timelineBlocks.length > 0 && <Timeline blocks={timelineBlocks} />}
       {timelineBlocks.length === 0 && (
         <div className="text-center py-8 text-gray-500 dark:text-gray-400">
           No activity data available for the selected period

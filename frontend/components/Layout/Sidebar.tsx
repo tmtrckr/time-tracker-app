@@ -10,7 +10,6 @@ import {
 import { useStore } from '../../store';
 import { formatDuration } from '../../utils';
 import { useTodayTotal } from '../../hooks';
-// Pomodoro functionality is now provided by plugins
 import { useSettings } from '../../hooks/useSettings';
 import { usePluginFrontend } from '../../hooks/usePluginFrontend';
 
@@ -24,7 +23,6 @@ const coreNavItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'history', label: 'History', icon: History },
   { id: 'reports', label: 'Reports', icon: FileText },
-  // Pomodoro is now provided by plugins
   { id: 'marketplace', label: 'Marketplace', icon: Package },
   { id: 'settings', label: 'Settings', icon: Settings },
 ] as const;
@@ -33,7 +31,6 @@ export default function Sidebar({ currentView, onNavigate, onClose }: SidebarPro
   const isTrackingPaused = useStore((state) => state.isTrackingPaused);
   const isThinkingMode = useStore((state) => state.isThinkingMode);
   const { data: todayTotal = 0, isLoading: isLoadingTodayTotal } = useTodayTotal();
-  // Pomodoro functionality is now provided by plugins
   // Use settings from store for immediate updates, fallback to useSettings query
   const storeSettings = useStore((state) => state.settings);
   const querySettingsResult = useSettings();
@@ -138,7 +135,6 @@ export default function Sidebar({ currentView, onNavigate, onClose }: SidebarPro
                     </span>
                   </div>
                   
-                  {/* Pomodoro timer display is now provided by plugins */}
                 </button>
               </li>
             );

@@ -21,8 +21,6 @@ interface ManualEntryModalProps {
 export default function ManualEntryModal({ editEntry, onClose }: ManualEntryModalProps) {
   const { categories } = useStore();
   const { data: pinnedCategories = [] } = usePinnedCategories();
-  // Projects and tasks are now handled by plugins
-  const projects: any[] = [];
   const createEntry = useCreateManualEntry();
   const updateEntry = useUpdateManualEntry();
 
@@ -31,8 +29,6 @@ export default function ManualEntryModal({ editEntry, onClose }: ManualEntryModa
 
   const [description, setDescription] = useState(editEntry?.description || '');
   const [categoryId, setCategoryId] = useState<number | null>(editEntry?.category_id ?? null);
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(editEntry?.project_id ?? null);
-  const [taskId, setTaskId] = useState<number | null>(editEntry?.task_id ?? null);
   const [startDate, setStartDate] = useState(
     editEntry 
       ? format(new Date(editEntry.started_at * 1000), "yyyy-MM-dd'T'HH:mm")
@@ -55,8 +51,6 @@ export default function ManualEntryModal({ editEntry, onClose }: ManualEntryModa
     if (editEntry) {
       setDescription(editEntry.description || '');
       setCategoryId(editEntry.category_id ?? null);
-      setSelectedProjectId(editEntry.project_id ?? null);
-      setTaskId(editEntry.task_id ?? null);
       setStartDate(format(new Date(editEntry.started_at * 1000), "yyyy-MM-dd'T'HH:mm"));
       setEndDate(format(new Date(editEntry.ended_at * 1000), "yyyy-MM-dd'T'HH:mm"));
     }
@@ -79,8 +73,6 @@ export default function ManualEntryModal({ editEntry, onClose }: ManualEntryModa
           id: editEntry.id,
           description: description || null,
           category_id: categoryId,
-          project_id: selectedProjectId,
-          task_id: taskId,
           started_at: Math.floor(startedAt / 1000),
           ended_at: Math.floor(endedAt / 1000),
         });
@@ -88,8 +80,6 @@ export default function ManualEntryModal({ editEntry, onClose }: ManualEntryModa
         await createEntry.mutateAsync({
           description: description || null,
           category_id: categoryId,
-          project_id: selectedProjectId,
-          task_id: taskId,
           started_at: Math.floor(startedAt / 1000),
           ended_at: Math.floor(endedAt / 1000),
         });
@@ -198,30 +188,6 @@ export default function ManualEntryModal({ editEntry, onClose }: ManualEntryModa
             </select>
           </div>
 
-          {/* Project */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Project (optional)
-            </label>
-            <select
-              value={selectedProjectId || ''}
-              onChange={(e) => {
-                const pid = e.target.value ? Number(e.target.value) : null;
-                setSelectedProjectId(pid);
-                setTaskId(null); // Reset task when project changes
-              }}
-              className="input"
-            >
-              <option value="">Select project...</option>
-              {projects.map((proj: { id: number; name: string; client_name?: string | null }) => (
-                <option key={proj.id} value={proj.id}>
-                  {proj.name} {proj.client_name ? `(${proj.client_name})` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Task - Tasks are now provided by plugins */}
 
           {/* Description */}
           <div>

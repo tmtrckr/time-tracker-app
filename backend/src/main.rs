@@ -36,48 +36,16 @@ fn main() {
     // Get plugins directory
     let plugins_dir = data_dir.join("plugins");
     let plugin_loader = PluginLoader::new(plugins_dir);
-    
-    // Load and initialize all installed plugins dynamically
-    match plugin_loader.load_all_installed_plugins(&db) {
-        Ok(dynamic_plugins) => {
-            use plugin_system::api::PluginAPI;
-            use time_tracker_plugin_sdk::PluginAPIInterface;
-            
-            for (plugin_id, mut plugin) in dynamic_plugins {
-                let api = PluginAPI::new(Arc::clone(&db), Arc::clone(&extension_registry), plugin_id.clone());
-                match plugin.initialize(&api as &dyn PluginAPIInterface) {
-                    Ok(()) => {
-                        if let Err(e) = plugin_registry.register(plugin) {
-                            eprintln!("Warning: Failed to register dynamic plugin {}: {}", plugin_id, e);
-                        } else {
-                            eprintln!("Initialized and registered dynamic plugin: {}", plugin_id);
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Warning: Failed to initialize dynamic plugin {}: {}", plugin_id, e);
-                    }
-                }
-            }
-        }
-        Err(e) => {
-            eprintln!("Warning: Failed to load dynamic plugins: {}", e);
-        }
-    }
-    
-    // Apply plugin extensions to database schema
-    if let Err(e) = db.apply_plugin_extensions(&extension_registry) {
-        eprintln!("Warning: Failed to apply plugin extensions: {}", e);
-    }
 
     // Create app state
+    let plugin_loader_arc = Arc::new(plugin_loader);
     let app_state = AppState {
         db: Arc::clone(&db),
         tracker: Arc::new(Mutex::new(None)),
         thinking_mode_entry_id: Arc::new(Mutex::new(None)),
-        active_project_id: Arc::new(Mutex::new(None)),
-        active_task_id: Arc::new(Mutex::new(None)),
         plugin_registry: Some(Arc::clone(&plugin_registry)),
         extension_registry: Some(Arc::clone(&extension_registry)),
+        plugin_loader: Some(Arc::clone(&plugin_loader_arc)),
     };
 
     // Build Tauri application
@@ -162,11 +130,6 @@ fn main() {
             commands::show_idle_prompt,
             // Domain commands
             commands::get_top_domains,
-            // Active project/task commands
-            commands::set_active_project,
-            commands::set_active_task,
-            commands::get_active_project,
-            commands::get_active_task,
             // Plugin commands
             commands::get_plugin_registry,
             commands::search_plugins,
@@ -178,22 +141,18 @@ fn main() {
             commands::enable_plugin,
             commands::disable_plugin,
             commands::load_plugin,
+            commands::unload_plugin,
+            commands::invoke_plugin_command,
+            commands::is_plugin_installed,
+            commands::get_plugin_ids,
+            commands::is_plugin_loaded,
         ])
         .setup(move |app| {
             let app_handle = app.handle();
             let db_clone = Arc::clone(&db);
 
-            // Get active project/task references from app state
-            let app_state = app.state::<commands::AppState>();
-            let active_project_id = Arc::clone(&app_state.active_project_id);
-            let active_task_id = Arc::clone(&app_state.active_task_id);
-
             // Start the tracker in a background thread
-            let tracker = Arc::new(tracker::Tracker::new(
-                Arc::clone(&db_clone),
-                active_project_id,
-                active_task_id,
-            ));
+            let tracker = Arc::new(tracker::Tracker::new(Arc::clone(&db_clone)));
             
             // Load settings from database and apply to tracker
             if let Ok(settings) = db_clone.get_all_settings() {
@@ -231,6 +190,74 @@ fn main() {
                     window.set_focus().ok();
                 }
             });
+
+            // Load plugins asynchronously in background thread (non-blocking)
+            let app_state = app.state::<commands::AppState>();
+            if let (Some(plugin_registry), Some(extension_registry), Some(plugin_loader)) = (
+                app_state.plugin_registry.as_ref(),
+                app_state.extension_registry.as_ref(),
+                app_state.plugin_loader.as_ref(),
+            ) {
+                let db_for_plugins = Arc::clone(&app_state.db);
+                let plugin_registry_for_loading = Arc::clone(plugin_registry);
+                let extension_registry_for_loading = Arc::clone(extension_registry);
+                let plugin_loader_for_loading = Arc::clone(plugin_loader);
+
+                std::thread::spawn(move || {
+                    eprintln!("Starting async plugin loading...");
+
+                    // Load and initialize all installed plugins dynamically
+                    match plugin_loader_for_loading.load_all_installed_plugins(&db_for_plugins) {
+                        Ok(dynamic_plugins) => {
+                            use plugin_system::api::PluginAPI;
+                            use time_tracker_plugin_sdk::PluginAPIInterface;
+
+                            for (plugin_id, mut plugin) in dynamic_plugins {
+                                let api = PluginAPI::new(
+                                    Arc::clone(&db_for_plugins),
+                                    Arc::clone(&extension_registry_for_loading),
+                                    plugin_id.clone(),
+                                );
+                                match plugin.initialize(&api as &dyn PluginAPIInterface) {
+                                    Ok(()) => {
+                                        if let Err(e) =
+                                            plugin_registry_for_loading.register(plugin)
+                                        {
+                                            eprintln!(
+                                                "Warning: Failed to register dynamic plugin {}: {}",
+                                                plugin_id, e
+                                            );
+                                        } else {
+                                            eprintln!(
+                                                "Initialized and registered dynamic plugin: {}",
+                                                plugin_id
+                                            );
+                                        }
+                                    }
+                                    Err(e) => {
+                                        eprintln!(
+                                            "Warning: Failed to initialize dynamic plugin {}: {}",
+                                            plugin_id, e
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Warning: Failed to load dynamic plugins: {}", e);
+                        }
+                    }
+
+                    // Apply plugin extensions to database schema
+                    if let Err(e) = db_for_plugins
+                        .apply_plugin_extensions(&extension_registry_for_loading)
+                    {
+                        eprintln!("Warning: Failed to apply plugin extensions: {}", e);
+                    }
+
+                    eprintln!("Plugin loading completed");
+                });
+            }
 
             // Start tray update timer
             let db_for_tray = Arc::clone(&db_clone);

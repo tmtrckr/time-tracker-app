@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from '../../hooks/useCategories';
-// Projects and Tasks are now provided by plugins
 import Card from '../Common/Card';
 import Button from '../Common/Button';
 import { Category } from '../../types';
@@ -8,15 +7,6 @@ import { Plus, Check, X, Edit2, Trash2, Tag } from 'lucide-react';
 
 export const Categories: React.FC = () => {
   const { data: categories = [], isLoading } = useCategories();
-  // Projects and Tasks are now provided by plugins
-  const projects: any[] = [];
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
-  const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
-  const [editingCategoryProjectId, setEditingCategoryProjectId] = useState<number | null>(null);
-  const tasks: any[] = [];
-  // For editing, use editingProjectId if set, otherwise use the category's project_id
-  const effectiveEditingProjectId = editingProjectId !== null ? editingProjectId : editingCategoryProjectId;
-  const editingTasks: any[] = [];
   const createCategoryMutation = useCreateCategory();
   const updateCategoryMutation = useUpdateCategory();
   const deleteCategoryMutation = useDeleteCategory();
@@ -40,7 +30,6 @@ export const Categories: React.FC = () => {
       await updateCategory({
         ...category,
         is_productive: category.is_productive !== undefined ? category.is_productive : null,
-        is_billable: category.is_billable !== undefined ? category.is_billable : null,
       } as Category);
     } else if (newCategory) {
       await createCategory({
@@ -48,11 +37,7 @@ export const Categories: React.FC = () => {
         color: newCategory.color || '#888888',
         icon: newCategory.icon || '📁',
         is_productive: newCategory.is_productive !== undefined ? newCategory.is_productive : true,
-        is_billable: newCategory.is_billable !== undefined ? newCategory.is_billable : false,
-        hourly_rate: newCategory.hourly_rate ?? null,
         sort_order: categories.length,
-        project_id: newCategory.project_id ?? null,
-        task_id: newCategory.task_id ?? null,
       });
     }
     setEditingId(null);
@@ -96,7 +81,7 @@ export const Categories: React.FC = () => {
             Categories
           </h2>
         </div>
-        <Button onClick={() => setNewCategory({ name: '', color: '#888888', icon: '📁', is_productive: true, is_billable: false, hourly_rate: null, is_system: false, is_pinned: false, project_id: null, task_id: null })}>
+        <Button onClick={() => setNewCategory({ name: '', color: '#888888', icon: '📁', is_productive: true, is_system: false, is_pinned: false })}>
           <Plus className="w-4 h-4 mr-1" />
           Add Category
         </Button>
@@ -110,10 +95,6 @@ export const Categories: React.FC = () => {
             <div className="col-span-2">Name</div>
             <div className="col-span-1">Color</div>
             <div className="col-span-1">Status</div>
-            <div className="col-span-1">Project</div>
-            <div className="col-span-1">Task</div>
-            <div className="col-span-1">Billable</div>
-            <div className="col-span-1">Rate/hr</div>
             <div className="col-span-1">Order</div>
             <div className="col-span-1">Pinned</div>
             <div className="col-span-1">Actions</div>
@@ -164,63 +145,6 @@ export const Categories: React.FC = () => {
                   <option value="unproductive">✗ Unproductive</option>
                   <option value="neutral">— Neutral</option>
                 </select>
-              </div>
-              <div className="col-span-1">
-                <select
-                  value={newCategory.project_id || ''}
-                  onChange={(e) => {
-                    const projectId = e.target.value ? parseInt(e.target.value) : null;
-                    setSelectedProjectId(projectId);
-                    setNewCategory({ ...newCategory, project_id: projectId, task_id: null });
-                  }}
-                  className="w-full px-2 py-1 text-sm border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  title="Default Project"
-                >
-                  <option value="">None</option>
-                  {projects.filter(p => !p.is_archived).map((proj) => (
-                    <option key={proj.id} value={proj.id}>
-                      {proj.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="col-span-1">
-                <select
-                  value={newCategory.task_id || ''}
-                  onChange={(e) => setNewCategory({ ...newCategory, task_id: e.target.value ? parseInt(e.target.value) : null })}
-                  className="w-full px-2 py-1 text-sm border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  disabled={!newCategory.project_id}
-                  title="Default Task"
-                >
-                  <option value="">None</option>
-                  {newCategory.project_id && tasks?.filter(t => !t.is_archived).map((task) => (
-                    <option key={task.id} value={task.id}>
-                      {task.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="col-span-1">
-                <label className="inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={newCategory.is_billable ?? false}
-                    onChange={(e) => setNewCategory({ ...newCategory, is_billable: e.target.checked })}
-                    className="sr-only peer"
-                  />
-                  <div className="relative w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-                </label>
-              </div>
-              <div className="col-span-1">
-                <input
-                  type="number"
-                  value={newCategory.hourly_rate || ''}
-                  onChange={(e) => setNewCategory({ ...newCategory, hourly_rate: e.target.value ? parseFloat(e.target.value) : null })}
-                  className="w-full px-2 py-1 border rounded dark:bg-gray-700 dark:border-gray-600"
-                  placeholder="0.00"
-                  step="0.01"
-                  min="0"
-                />
               </div>
               <div className="col-span-1">
                 <input
@@ -297,63 +221,6 @@ export const Categories: React.FC = () => {
                     </select>
                   </div>
                   <div className="col-span-1">
-                    <select
-                      id={`project-${category.id}`}
-                      defaultValue={category.project_id || ''}
-                      onChange={(e) => {
-                        const projectId = e.target.value ? parseInt(e.target.value) : null;
-                        setEditingProjectId(projectId);
-                        setEditingCategoryProjectId(null); // Clear category project_id when user changes it
-                        const taskSelect = document.getElementById(`task-${category.id}`) as HTMLSelectElement;
-                        if (taskSelect) taskSelect.value = '';
-                      }}
-                      className="w-full px-2 py-1 text-sm border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      title="Default Project"
-                    >
-                      <option value="">None</option>
-                      {projects.filter(p => !p.is_archived).map((proj) => (
-                        <option key={proj.id} value={proj.id}>
-                          {proj.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-span-1">
-                    <select
-                      id={`task-${category.id}`}
-                      defaultValue={category.task_id || ''}
-                      className="w-full px-2 py-1 text-sm border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      disabled={!effectiveEditingProjectId}
-                      title="Default Task"
-                    >
-                      <option value="">None</option>
-                      {effectiveEditingProjectId && editingTasks?.filter(t => !t.is_archived).map((task) => (
-                        <option key={task.id} value={task.id}>
-                          {task.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-span-1">
-                    <input
-                      type="checkbox"
-                      defaultChecked={category.is_billable ?? false}
-                      id={`billable-${category.id}`}
-                      className="w-4 h-4"
-                    />
-                  </div>
-                  <div className="col-span-1">
-                    <input
-                      type="number"
-                      defaultValue={category.hourly_rate || ''}
-                      className="w-full px-2 py-1 border rounded dark:bg-gray-700 dark:border-gray-600"
-                      id={`rate-${category.id}`}
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <div className="col-span-1">
                     <input
                       type="number"
                       defaultValue={category.sort_order}
@@ -378,24 +245,17 @@ export const Categories: React.FC = () => {
                         const color = (document.getElementById(`color-${category.id}`) as HTMLInputElement).value;
                         const productiveValue = (document.getElementById(`productive-${category.id}`) as HTMLSelectElement).value;
                         const is_productive = productiveValue === 'productive' ? true : productiveValue === 'unproductive' ? false : null;
-                        const is_billable = (document.getElementById(`billable-${category.id}`) as HTMLInputElement).checked;
                         const is_pinned = (document.getElementById(`pinned-${category.id}`) as HTMLInputElement).checked;
-                        const hourly_rate = (document.getElementById(`rate-${category.id}`) as HTMLInputElement).value;
                         const sort_order = parseInt((document.getElementById(`order-${category.id}`) as HTMLInputElement).value);
-                        const project_id = (document.getElementById(`project-${category.id}`) as HTMLSelectElement)?.value ? parseInt((document.getElementById(`project-${category.id}`) as HTMLSelectElement).value) : null;
-                        const task_id = (document.getElementById(`task-${category.id}`) as HTMLSelectElement)?.value ? parseInt((document.getElementById(`task-${category.id}`) as HTMLSelectElement).value) : null;
+                        // Плагины должны обновлять эти поля через call_db_method после обновления категории
                         handleSave({ 
                           ...category, 
                           icon, 
                           name, 
                           color, 
                           is_productive, 
-                          is_billable,
                           is_pinned,
-                          hourly_rate: hourly_rate ? parseFloat(hourly_rate) : null,
                           sort_order,
-                          project_id,
-                          task_id
                         });
                       }}
                     >
@@ -403,8 +263,6 @@ export const Categories: React.FC = () => {
                     </Button>
                     <Button size="sm" variant="secondary" onClick={() => {
                       setEditingId(null);
-                      setEditingProjectId(null);
-                      setEditingCategoryProjectId(null);
                     }}>
                       ✕
                     </Button>
@@ -433,34 +291,6 @@ export const Categories: React.FC = () => {
                       <span className="text-gray-400">—</span>
                     )}
                   </div>
-                  <div className="col-span-1 text-sm text-gray-500 dark:text-gray-400">
-                    {category.project_id ? projects.find(p => p.id === category.project_id)?.name || '—' : '—'}
-                  </div>
-                  <div className="col-span-1 text-sm text-gray-500 dark:text-gray-400">
-                    {category.task_id ? (() => {
-                      // Try to find task name from tasks if project matches selectedProjectId
-                      if (category.project_id === selectedProjectId && tasks) {
-                        const task = tasks.find(t => t.id === category.task_id);
-                        if (task) return task.name;
-                      }
-                      // Otherwise show task ID or placeholder
-                      return `Task #${category.task_id}`;
-                    })() : '—'}
-                  </div>
-                  <div className="col-span-1">
-                    {category.is_billable === true && (
-                      <span className="text-green-500">💰</span>
-                    )}
-                    {category.is_billable === false && (
-                      <span className="text-gray-400">—</span>
-                    )}
-                    {category.is_billable === null && (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </div>
-                  <div className="col-span-1 text-sm text-gray-500 dark:text-gray-400">
-                    {category.hourly_rate ? `$${category.hourly_rate.toFixed(2)}` : '—'}
-                  </div>
                   <div className="col-span-1 text-gray-500 dark:text-gray-400">
                     {category.sort_order}
                   </div>
@@ -475,8 +305,6 @@ export const Categories: React.FC = () => {
                   <div className="col-span-1 flex gap-2">
                     <Button size="sm" variant="secondary" onClick={() => {
                       setEditingId(category.id);
-                      setEditingProjectId(null);
-                      setEditingCategoryProjectId(category.project_id || null);
                     }} title="Edit category">
                       <Edit2 className="w-4 h-4" />
                     </Button>

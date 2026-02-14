@@ -303,7 +303,6 @@ jobs:
           $manifestContent += "Tags:`n"
           $manifestContent += "  - time-tracking`n"
           $manifestContent += "  - productivity`n"
-          $manifestContent += "  - pomodoro`n"
           $manifestContent += "  - time-management`n"
           $manifestContent += "Moniker: timetracker`n"
           $manifestContent += "ManifestType: defaultLocale`n"

@@ -156,6 +156,26 @@ impl ExtensionRegistry {
         // For now, return empty - will be implemented when needed
         vec![]
     }
+    
+    /// Apply data hooks for an activity
+    /// This method accesses hooks through the Mutex and applies them to the activity
+    pub fn apply_activity_hooks(&self, activity: &mut Activity, db: &Arc<Database>) -> Result<(), String> {
+        use EntityType::Activity;
+        let extensions = self.extensions.lock()
+            .map_err(|e| format!("Failed to lock extension registry: {}", e))?;
+        
+        if let Some(exts) = extensions.get(&Activity) {
+            for ext in exts {
+                if matches!(ext.extension_type, ExtensionType::DataHook) {
+                    if let Some(ref hook) = ext.hook {
+                        (hook.on_upsert)(activity, db)?;
+                    }
+                }
+            }
+        }
+        
+        Ok(())
+    }
 }
 
 impl Default for ExtensionRegistry {

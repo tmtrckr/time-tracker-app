@@ -251,8 +251,12 @@
     <script>
       // Show window after HTML is loaded and splash screen is ready
       const showWindow = () => {
-        if (window.__TAURI__) {
-          window.__TAURI__.window.getCurrent().show().catch(() => {});
+        if (window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.getCurrent) {
+          try {
+            window.__TAURI__.window.getCurrent().show().catch(() => {});
+          } catch (e) {
+            // Tauri API not ready yet, ignore
+          }
         }
       };
       

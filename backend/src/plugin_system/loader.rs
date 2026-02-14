@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::fs;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 use libloading::Library;
 use crate::plugin_system::discovery::{PluginManifest, GitHubReleaseAsset};
 
@@ -11,7 +12,8 @@ use crate::plugin_system::discovery::{PluginManifest, GitHubReleaseAsset};
 pub struct PluginLoader {
     plugins_dir: PathBuf,
     /// Keep loaded libraries alive so plugin symbols remain valid
-    loaded_libraries: Arc<Mutex<Vec<Library>>>,
+    /// Maps plugin_id to Library handle
+    loaded_libraries: Arc<Mutex<HashMap<String, Library>>>,
 }
 
 impl PluginLoader {
@@ -22,7 +24,7 @@ impl PluginLoader {
         
         Self { 
             plugins_dir,
-            loaded_libraries: Arc::new(Mutex::new(Vec::new())),
+            loaded_libraries: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -264,6 +266,25 @@ impl PluginLoader {
         Err("No library file found in plugin directory".to_string())
     }
 
+    /// Unload a plugin library by plugin_id
+    /// This allows the DLL to be replaced when the plugin is disabled
+    pub fn unload_plugin_library(&self, plugin_id: &str) -> Result<(), String> {
+        let mut libs = self.loaded_libraries.lock()
+            .map_err(|e| format!("Failed to lock loaded libraries: {}", e))?;
+        
+        if libs.remove(plugin_id).is_some() {
+            Ok(())
+        } else {
+            Err(format!("Plugin {} library not found in loaded libraries", plugin_id))
+        }
+    }
+    
+    /// Check if a plugin library is currently loaded
+    pub fn is_plugin_loaded(&self, plugin_id: &str) -> bool {
+        let libs = self.loaded_libraries.lock().ok();
+        libs.map(|l| l.contains_key(plugin_id)).unwrap_or(false)
+    }
+
     /// Load a plugin dynamically from its installed directory
     /// Returns the loaded plugin instance ready for initialization
     pub fn load_dynamic_plugin(
@@ -329,8 +350,9 @@ impl PluginLoader {
             
             // Store the library handle to keep it loaded
             // This ensures plugin symbols remain valid
+            // Map plugin_id to Library for later unloading
             if let Ok(mut libs) = self.loaded_libraries.lock() {
-                libs.push(lib);
+                libs.insert(plugin_id.to_string(), lib);
             } else {
                 // If we can't store it, leak it to prevent crashes
                 std::mem::forget(lib);

@@ -4,6 +4,8 @@ import { useSettings } from './hooks/useSettings';
 import { useActivities } from './hooks/useActivities';
 import { useCategories } from './hooks/useCategories';
 import { usePluginFrontend } from './hooks/usePluginFrontend';
+import { useTauriEvents } from './hooks/useTauriEvents';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import Layout from './components/Layout/Layout';
 import Dashboard from './components/Dashboard/Dashboard';
 import History from './components/History/History';
@@ -12,11 +14,8 @@ import Settings from './components/Settings/Settings';
 import { Marketplace } from './components/Marketplace';
 import IdlePrompt from './components/IdlePrompt/IdlePrompt';
 import ManualEntryModal from './components/ManualEntry/ManualEntryModal';
-import { listen } from '@tauri-apps/api/event';
 import type { ManualEntry } from './types';
 import type { PluginRoute } from './types/pluginFrontend';
-
-const VALID_VIEWS: View[] = ['dashboard', 'history', 'reports', 'settings', 'marketplace'];
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -27,61 +26,26 @@ function App() {
   const [editingEntry, setEditingEntry] = useState<ManualEntry | null>(null);
 
   const { isLoading: settingsLoading } = useSettings();
-  const { isLoading: activitiesLoading, refetch: refetchActivities } = useActivities();
-  const { isLoading: categoriesLoading } = useCategories();
-  const { routes: pluginRoutes, isLoading: pluginsLoading } = usePluginFrontend();
+  const { refetch: refetchActivities } = useActivities();
+  const { routes: pluginRoutes } = usePluginFrontend();
+  useCategories(); // ensure categories load (used by Layout/Dashboard/History)
 
   const isTrackingPaused = useStore((state) => state.isTrackingPaused);
   const darkMode = useStore((state) => state.settings.darkMode);
 
-  // Compute loading state
-  const isLoading = settingsLoading || activitiesLoading || categoriesLoading || pluginsLoading;
-
-  // Track which phase we're in to show more specific status
-  const [loadingPhase, setLoadingPhase] = useState<string>('');
-
-  // Update splash screen status during loading
+  // Splash: wait only for settings (theme, etc.). Rest of data loads in-place with skeletons.
   useEffect(() => {
     const updateSplashStatus = (window as any).updateSplashStatus;
-    if (!updateSplashStatus) return;
+    const hideSplashScreen = (window as any).hideSplashScreen;
+    if (!updateSplashStatus || !hideSplashScreen) return;
 
-    // Show detailed status for each loading phase
-    // Priority: settings first (needed for other things), then plugins, then categories, then activities
-    if (settingsLoading && loadingPhase !== 'settings') {
-      setLoadingPhase('settings');
-      updateSplashStatus('Loading application settings...');
-    } else if (!settingsLoading && pluginsLoading && loadingPhase !== 'plugins') {
-      setLoadingPhase('plugins');
-      updateSplashStatus('Initializing plugins...');
-    } else if (!settingsLoading && !pluginsLoading && categoriesLoading && loadingPhase !== 'categories') {
-      setLoadingPhase('categories');
-      updateSplashStatus('Loading activity categories...');
-    } else if (!settingsLoading && !pluginsLoading && !categoriesLoading && activitiesLoading && loadingPhase !== 'activities') {
-      setLoadingPhase('activities');
-      updateSplashStatus('Loading time tracking data...');
-    } else if (!isLoading && loadingPhase !== 'done') {
-      setLoadingPhase('done');
-      // All data loaded - hide splash screen immediately
-      updateSplashStatus('Finalizing setup...');
-      const hideSplashScreen = (window as any).hideSplashScreen;
-      if (hideSplashScreen) {
-        // Use requestAnimationFrame for smooth transition without blocking
-        requestAnimationFrame(() => {
-          hideSplashScreen();
-        });
-      }
+    if (settingsLoading) {
+      updateSplashStatus('Loading settings...');
+    } else {
+      updateSplashStatus('Ready');
+      requestAnimationFrame(() => hideSplashScreen());
     }
-  }, [settingsLoading, categoriesLoading, activitiesLoading, pluginsLoading, isLoading, loadingPhase]);
-
-  // Show status when component first mounts
-  useEffect(() => {
-    const updateSplashStatus = (window as any).updateSplashStatus;
-    if (updateSplashStatus) {
-      updateSplashStatus('Loading components...');
-      // Immediately move to database connection without delay
-      updateSplashStatus('Connecting to database...');
-    }
-  }, []);
+  }, [settingsLoading]);
 
   // Apply dark mode theme on mount and when it changes
   useEffect(() => {
@@ -94,126 +58,35 @@ function App() {
   }, [darkMode]);
 
   // Listen for Tauri events
-  useEffect(() => {
-    let unlistenIdleReturn: (() => void) | undefined;
-    let unlistenActivityUpdate: (() => void) | undefined;
-    let unlistenNavigate: (() => void) | undefined;
-    let unlistenOpenManualEntry: (() => void) | undefined;
-    let unlistenStartThinkingMode: (() => void) | undefined;
-    let unlistenTogglePause: (() => void) | undefined;
-
-    const setupListeners = async () => {
-      try {
-        // Listen for idle return events from Tauri backend
-        unlistenIdleReturn = await listen<{ duration_minutes: number; started_at: number }>('idle-return', (event) => {
-          const store = useStore.getState();
-          const settings = store.settings;
-          const idleDurationMinutes = event.payload.duration_minutes;
-          const idlePromptThresholdMinutes = settings.idle_prompt_threshold_minutes || 5;
-          
-          // Filter by prompt threshold: only show prompt for periods >= threshold
-          if (idleDurationMinutes < idlePromptThresholdMinutes) {
-            // Don't show prompt for periods shorter than threshold
-            return;
-          }
-          
-          setIdleDuration(idleDurationMinutes);
-          setIdleStartedAt(event.payload.started_at);
-          setShowIdlePrompt(true);
-        });
-
-        // Listen for activity updates
-        unlistenActivityUpdate = await listen('activity-updated', () => {
-          refetchActivities();
-        });
-
-        // Listen for navigation events from tray
-        unlistenNavigate = await listen<string>('navigate', (event) => {
-          const view = event.payload;
-          if (VALID_VIEWS.includes(view as View)) {
-            setCurrentView(view as View);
-          }
-        });
-
-        // Listen for open manual entry event
-        unlistenOpenManualEntry = await listen('open-manual-entry', () => {
-          setShowManualEntry(true);
-        });
-
-        // Listen for start thinking mode event
-        unlistenStartThinkingMode = await listen('start-thinking-mode', async () => {
-          try {
-            const { invoke } = await import('@tauri-apps/api/tauri');
-            await invoke('start_thinking_mode');
-            const store = useStore.getState();
-            store.setIsThinkingMode(true);
-            const { showSuccess } = await import('./utils/toast');
-            showSuccess('Thinking mode started');
-            refetchActivities();
-          } catch (error) {
-            const { handleApiError } = await import('./utils/toast');
-            handleApiError(error, 'Failed to start thinking mode');
-          }
-        });
-
-        // Listen for toggle pause event
-        unlistenTogglePause = await listen('toggle-pause', async () => {
-          try {
-            const { invoke } = await import('@tauri-apps/api/tauri');
-            const store = useStore.getState();
-            const isPaused = store.isTrackingPaused;
-            if (isPaused) {
-              await invoke('resume_tracking');
-              store.setIsTrackingPaused(false);
-              const { showSuccess } = await import('./utils/toast');
-              showSuccess('Tracking resumed');
-            } else {
-              await invoke('pause_tracking');
-              store.setIsTrackingPaused(true);
-              const { showSuccess } = await import('./utils/toast');
-              showSuccess('Tracking paused');
-            }
-          } catch (error) {
-            const { handleApiError } = await import('./utils/toast');
-            handleApiError(error, 'Failed to toggle tracking');
-          }
-        });
-      } catch (error) {
-        // Running in browser without Tauri - silently ignore
-      }
-    };
-
-    setupListeners();
-
-    return () => {
-      if (unlistenIdleReturn) unlistenIdleReturn();
-      if (unlistenActivityUpdate) unlistenActivityUpdate();
-      if (unlistenNavigate) unlistenNavigate();
-      if (unlistenOpenManualEntry) unlistenOpenManualEntry();
-      if (unlistenStartThinkingMode) unlistenStartThinkingMode();
-      if (unlistenTogglePause) unlistenTogglePause();
-    };
-  }, [refetchActivities]);
+  useTauriEvents({
+    onIdleReturn: (durationMinutes, startedAt) => {
+      setIdleDuration(durationMinutes);
+      setIdleStartedAt(startedAt);
+      setShowIdlePrompt(true);
+    },
+    onActivityUpdate: () => {
+      refetchActivities();
+    },
+    onNavigate: (view) => {
+      setCurrentView(view);
+    },
+    onOpenManualEntry: () => {
+      setShowManualEntry(true);
+    },
+    onStartThinkingMode: () => {
+      refetchActivities();
+    },
+  });
 
   // Handle keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl/Cmd + N for new manual entry
-      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-        e.preventDefault();
-        setShowManualEntry(true);
-      }
-      // Ctrl/Cmd + 1-6 for navigation
-      if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '6') {
-        e.preventDefault();
-        const views: View[] = ['dashboard', 'history', 'reports', 'pomodoro', 'settings', 'marketplace'];
-        setCurrentView(views[parseInt(e.key) - 1]);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  useKeyboardShortcuts({
+    onNewManualEntry: () => {
+      setShowManualEntry(true);
+    },
+    onNavigate: (view) => {
+      setCurrentView(view);
+    },
+  });
 
   const handleIdleSubmit = async (categoryId: number, comment?: string) => {
     // Update existing idle activity with category and description
@@ -255,11 +128,8 @@ function App() {
           id: editingEntry.id,
           description: entry.description,
           categoryId: entry.categoryId,
-          project: editingEntry.project ?? null,
           startedAt: startedAtSec,
           endedAt: endedAtSec,
-          projectId: editingEntry.project_id ?? null,
-          taskId: editingEntry.task_id ?? null,
         });
         showSuccess('Manual entry updated');
       } else {
@@ -287,6 +157,42 @@ function App() {
     const pluginRoute = pluginRoutes.find((route: PluginRoute) => route.path === currentView);
     if (pluginRoute) {
       const Component = pluginRoute.component;
+      
+      // Validate that Component is actually a valid React component
+      // React components are functions or classes, not objects
+      if (typeof Component !== 'function') {
+        console.error(
+          `[Plugin Error] Invalid component type for route "${pluginRoute.path}". ` +
+          `Expected a function or class component, but got: ${typeof Component}. ` +
+          `Component value:`,
+          Component
+        );
+        
+        // Show error UI instead of crashing
+        return (
+          <div className="p-8 text-center">
+            <h2 className="text-xl font-semibold mb-4 text-red-600 dark:text-red-400">
+              Plugin Component Error
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-2">
+              The plugin route "{pluginRoute.path}" registered an invalid component.
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-500">
+              Expected a React component (function or class), but received: {typeof Component}
+            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-600 mt-4">
+              Check the plugin's registerRoute call - it should pass the component directly, not wrapped in an object.
+            </p>
+            <button
+              onClick={() => setCurrentView('dashboard')}
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Go to Dashboard
+            </button>
+          </div>
+        );
+      }
+      
       return <Component />;
     }
     

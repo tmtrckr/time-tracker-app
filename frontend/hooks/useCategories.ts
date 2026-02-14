@@ -29,13 +29,9 @@ export function useCreateCategory() {
       color: string;
       icon: string;
       is_productive: boolean | null;
-      is_billable: boolean | null;
-      hourly_rate: number | null;
       sort_order: number;
       is_system?: boolean;
       is_pinned?: boolean;
-      project_id?: number | null;
-      task_id?: number | null;
     }) => api.categories.createCategory(category),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
@@ -54,12 +50,8 @@ export function useUpdateCategory() {
       color: string;
       icon: string;
       is_productive: boolean | null;
-      is_billable: boolean | null;
-      hourly_rate: number | null;
       sort_order: number;
       is_pinned?: boolean;
-      project_id?: number | null;
-      task_id?: number | null;
     }) => api.categories.updateCategory(category),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });

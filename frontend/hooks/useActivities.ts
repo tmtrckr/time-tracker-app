@@ -107,11 +107,8 @@ export function useTimeline(_date?: Date) {
         app_name: activity.app_name,
         domain: activity.domain,
         category: category,
-        project: null, // Will be populated by Dashboard component with project lookup
-        task: null, // Will be populated by Dashboard component with task lookup
         is_idle: activity.is_idle,
         is_manual: false,
-        is_billable: false, // Will be calculated by Dashboard component from category/project settings
       } as TimelineBlock;
     });
   }, [activities, categories]);
