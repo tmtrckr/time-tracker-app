@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-02-14
+
+### Added
+- **Plugin System**: Complete plugin architecture overhaul
+  - Plugin SDK for developing custom plugins
+  - Plugin Marketplace for discovering and installing plugins from registries
+  - Dynamic plugin loading and runtime management
+  - Support for multiple plugin registries with custom URLs
+  - Plugin installation, uninstallation, enable/disable functionality
+  - Plugin author field and enhanced metadata support
+  - Frontend plugin component loading system
+- **Database Schema Versioning**: Robust migration system
+  - Schema version tracking and incremental migrations
+  - Migration system up to version 12
+  - Automatic schema updates for existing databases
+- **Performance Improvements**
+  - Pagination support for activity retrieval
+  - Enhanced loading state management in dashboard components
+  - Improved splash screen with better loading logic and timeout handling
+
+### Changed
+- **Architecture Refactoring**: Major structural improvements
+  - Removed built-in plugins (Pomodoro, Projects/Tasks, Goals, Billing) - now available as separate plugins
+  - Refactored backend commands for better plugin integration
+  - Enhanced plugin registry management and settings integration
+  - Improved plugin command handling with PluginAPI for database interactions
+- **Configuration Updates**
+  - Streamlined Tauri configuration and Windows dependencies
+  - Removed unused Tauri features for better performance
+  - Updated Cargo.toml dependencies
+- **Code Quality**
+  - Refactored update functions to return updated entities directly
+  - Enhanced code organization and maintainability
+  - Improved error handling in plugin system
+
+### Fixed
+- Plugin loading and initialization issues
+- Splash screen timeout handling
+- Plugin registry URL management
+
 ## [0.2.0] - 2025-01-27
 
 ### Added
@@ -66,5 +106,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automated version bumping
 - Release automation with changelog generation
 
+[0.3.0]: https://github.com/your-username/time-tracker-app/releases/tag/v0.3.0
 [0.2.0]: https://github.com/your-username/time-tracker-app/releases/tag/v0.2.0
 [0.1.0]: https://github.com/your-username/time-tracker-app/releases/tag/v0.1.0

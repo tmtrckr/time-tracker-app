@@ -3938,7 +3938,7 @@ dependencies = [
 
 [[package]]
 name = "time-tracker-app"
-version = "0.2.10"
+version = "0.3.0"
 dependencies = [
  "active-win-pos-rs",
  "auto-launch",
@@ -3964,7 +3964,7 @@ dependencies = [
 
 [[package]]
 name = "time-tracker-plugin-sdk"
-version = "0.2.10"
+version = "0.3.0"
 dependencies = [
  "serde",
  "serde_json",
