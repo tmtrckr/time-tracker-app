@@ -1,4 +1,5 @@
 import { FC } from 'react';
+import { Link } from 'react-router-dom';
 import { Timer, Heart } from 'lucide-react';
 import { getGitHubUrl, config } from '../config';
 
@@ -28,14 +29,14 @@ const Footer: FC = () => {
                 </a>
               </li>
               <li>
-                <a href="#plugins" className="hover:text-white transition-colors">
+                <a href="/#plugins" className="hover:text-white transition-colors">
                   Plugins
                 </a>
               </li>
               <li>
-                <a href="#marketplace" className="hover:text-white transition-colors">
+                <Link to="/marketplace" className="hover:text-white transition-colors">
                   Marketplace
-                </a>
+                </Link>
               </li>
               <li>
                 <a href="#screenshots" className="hover:text-white transition-colors">

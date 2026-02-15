@@ -1,5 +1,6 @@
 import { FC } from 'react';
-import { Zap, Rocket, Target, DollarSign, Folder, Globe, Timer, BarChart, Lock, Monitor, Puzzle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Zap, Rocket, Target, Globe, BarChart, Lock, Monitor, Puzzle, Store } from 'lucide-react';
 
 const Features: FC = () => {
   const features = [
@@ -19,24 +20,9 @@ const Features: FC = () => {
       Icon: Target,
     },
     {
-      title: 'Billable Time Tracking',
-      description: 'Track billable hours with hourly rates and automatic revenue calculations (via Billing plugin)',
-      Icon: DollarSign,
-    },
-    {
-      title: 'Project/Task Management',
-      description: 'Organize your time by projects and tasks with full CRUD operations (via Projects/Tasks plugin)',
-      Icon: Folder,
-    },
-    {
       title: 'Domain Tracking',
       description: 'Automatic domain extraction from browser activities for better categorization',
       Icon: Globe,
-    },
-    {
-      title: 'Pomodoro Timer',
-      description: 'Pomodoro timer with focus session tracking integrated with projects (via Pomodoro plugin)',
-      Icon: Timer,
     },
     {
       title: 'Reports & Analytics',
@@ -47,6 +33,15 @@ const Features: FC = () => {
       title: 'Plugin System',
       description: 'Extensible architecture with Plugin SDK. Build custom plugins or install from marketplace',
       Icon: Puzzle,
+      highlight: true,
+      link: '/#plugins',
+    },
+    {
+      title: 'Plugin Marketplace',
+      description: 'Discover and install plugins from the community registry. Billable tracking, projects, Pomodoro, and more',
+      Icon: Store,
+      highlight: true,
+      link: '/marketplace',
     },
     {
       title: 'Privacy-First',
@@ -69,21 +64,43 @@ const Features: FC = () => {
         <p className="text-center text-gray-600 mb-12 max-w-2xl mx-auto">
           Everything you need to track your time accurately and understand where it goes
         </p>
-        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((feature, index) => {
             const IconComponent = feature.Icon;
-            return (
-              <div
-                key={index}
-                className="bg-white rounded-lg p-6 border border-gray-200 hover:shadow-lg transition-shadow"
-              >
+            const isHighlighted = feature.highlight;
+            const content = (
+              <>
                 <div className="mb-3">
-                  <IconComponent className="w-8 h-8 text-primary-600" />
+                  <IconComponent className={`w-8 h-8 ${isHighlighted ? 'text-primary-600' : 'text-primary-600'}`} />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <h3 className={`text-lg font-semibold mb-2 ${isHighlighted ? 'text-primary-600' : 'text-gray-900'}`}>
                   {feature.title}
                 </h3>
                 <p className="text-gray-600 text-sm">{feature.description}</p>
+              </>
+            );
+
+            const className = `bg-white rounded-lg p-6 border transition-all ${
+              isHighlighted
+                ? 'border-primary-600 shadow-md hover:shadow-lg hover:border-primary-700'
+                : 'border-gray-200 hover:shadow-lg'
+            }`;
+
+            if (feature.link) {
+              return (
+                <Link
+                  key={index}
+                  to={feature.link}
+                  className={className}
+                >
+                  {content}
+                </Link>
+              );
+            }
+
+            return (
+              <div key={index} className={className}>
+                {content}
               </div>
             );
           })}

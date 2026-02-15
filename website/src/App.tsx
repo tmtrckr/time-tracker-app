@@ -1,40 +1,15 @@
-import Header from './components/Header';
-import Hero from './components/Hero';
-import Stats from './components/Stats';
-import KeyBenefits from './components/KeyBenefits';
-import WhyChoose from './components/WhyChoose';
-import Features from './components/Features';
-import Plugins from './components/Plugins';
-import PluginMarketplace from './components/PluginMarketplace';
-import UseCases from './components/UseCases';
-import Screenshots from './components/Screenshots';
-import Trust from './components/Trust';
-import Download from './components/Download';
-import Docs from './components/Docs';
-import FAQ from './components/FAQ';
-import Footer from './components/Footer';
+import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import Home from './pages/Home';
+import Marketplace from './pages/Marketplace';
 
 function App() {
   return (
-    <div className="min-h-screen bg-white">
-      <Header />
-      <main>
-        <Hero />
-        <Stats />
-        <KeyBenefits />
-        <WhyChoose />
-        <Features />
-        <Plugins />
-        <PluginMarketplace />
-        <UseCases />
-        <Screenshots />
-        <Trust />
-        <Download />
-        <Docs />
-        <FAQ />
-      </main>
-      <Footer />
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/marketplace" element={<Marketplace />} />
+      </Routes>
+    </Router>
   );
 }
 

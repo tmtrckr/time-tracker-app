@@ -122,7 +122,7 @@ const PluginMarketplace: FC = () => {
   }
 
   return (
-    <section id="marketplace" className="py-16 px-4 bg-gray-50">
+    <section className="py-16 px-4 bg-gray-50">
       <div className="container mx-auto max-w-6xl">
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-100 rounded-full mb-4">

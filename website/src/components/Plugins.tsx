@@ -69,7 +69,7 @@ const Plugins: FC = () => {
         {/* Link to Marketplace */}
         <div className="mb-12 text-center">
           <a
-            href="#marketplace"
+            href="/#/marketplace"
             className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700 font-semibold text-lg"
           >
             Browse Plugin Marketplace
