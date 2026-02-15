@@ -1,5 +1,5 @@
 import { useState, FC } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Timer, Store, BookOpen } from 'lucide-react';
 import { getGitHubUrl } from '../config';
 import ThemeToggle from './ThemeToggle';
@@ -7,7 +7,6 @@ import ThemeToggle from './ThemeToggle';
 const Header: FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const location = useLocation();
-  const navigate = useNavigate();
 
   const handleSectionClick = (id: string, e: React.MouseEvent) => {
     e.preventDefault();

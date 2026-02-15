@@ -5,8 +5,20 @@ import { getGitHubUrl } from '../config';
 const Docs: FC = () => {
   const docs = [
     {
+      title: 'Documentation Overview',
+      description: 'Overview of the plugin system documentation structure and quick start guide. Start here to get oriented.',
+      icon: FileText,
+      href: getGitHubUrl('/blob/main/docs/README.md'),
+      features: [
+        'Documentation structure',
+        'Quick start guide',
+        'Key resources and links',
+        'Contributing guidelines',
+      ],
+    },
+    {
       title: 'Plugin Development Guide',
-      description: 'Comprehensive tutorial-style guide for developing plugins. Start here if you\'re new to plugin development.',
+      description: 'Comprehensive tutorial-style guide for developing plugins. Learn how to build your first plugin step-by-step.',
       icon: BookOpen,
       href: getGitHubUrl('/blob/main/docs/PLUGIN_DEVELOPMENT.md'),
       features: [
@@ -28,18 +40,6 @@ const Docs: FC = () => {
         'Extension system (schema, model, hooks)',
         'Data structures and types',
         'FFI bindings and frontend integration',
-      ],
-    },
-    {
-      title: 'Documentation Overview',
-      description: 'Overview of the plugin system documentation structure and quick start guide.',
-      icon: FileText,
-      href: getGitHubUrl('/blob/main/docs/README.md'),
-      features: [
-        'Documentation structure',
-        'Quick start guide',
-        'Key resources and links',
-        'Contributing guidelines',
       ],
     },
   ];
