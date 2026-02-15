@@ -8,13 +8,13 @@ const ThemeToggle: FC = () => {
   const getIcon = () => {
     switch (theme) {
       case 'light':
-        return <Sun className="w-5 h-5" />;
+        return <Sun className="w-4 h-4" />;
       case 'dark':
-        return <Moon className="w-5 h-5" />;
+        return <Moon className="w-4 h-4" />;
       case 'system':
-        return <Monitor className="w-5 h-5" />;
+        return <Monitor className="w-4 h-4" />;
       default:
-        return <Monitor className="w-5 h-5" />;
+        return <Monitor className="w-4 h-4" />;
     }
   };
 
@@ -31,14 +31,38 @@ const ThemeToggle: FC = () => {
     }
   };
 
+  const getTogglePosition = () => {
+    switch (theme) {
+      case 'light':
+        return 'translate-x-0';
+      case 'dark':
+        return 'translate-x-full';
+      case 'system':
+        return 'translate-x-[50%]';
+      default:
+        return 'translate-x-[50%]';
+    }
+  };
+
   return (
     <button
       onClick={toggleTheme}
-      className="flex items-center justify-center p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+      className="relative w-16 h-8 rounded-full bg-gray-200 dark:bg-gray-700 p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
       aria-label={`Toggle theme (current: ${getLabel()})`}
       title={`Current: ${getLabel()}`}
     >
-      {getIcon()}
+      <div className="absolute inset-0 flex items-center justify-between px-1.5">
+        <Sun className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
+        <Monitor className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
+        <Moon className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
+      </div>
+      <div
+        className={`relative w-6 h-6 rounded-full bg-white dark:bg-gray-800 shadow-md transform transition-transform duration-200 ease-in-out flex items-center justify-center ${getTogglePosition()}`}
+      >
+        <div className="text-gray-700 dark:text-gray-300">
+          {getIcon()}
+        </div>
+      </div>
     </button>
   );
 };
