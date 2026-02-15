@@ -250,22 +250,25 @@ jobs:
           Add-Content -Path $env:GITHUB_OUTPUT -Value "description=$DESCRIPTION"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "short_description=$SHORT_DESC"
           
-          # Publisher name (GitHub username) and PackageIdentifier
-          # PackageIdentifier format: <Publisher>.<PackageName>
-          $PUBLISHER = "bthos"
+          # Publisher and path: winget uses manifests/<letter>/<publisher>/<package>/<version>
+          # Path will be: manifests/t/tmtrckr/TimeTracker/<version>/
+          $PUBLISHER = "tmtrckr"
+          $WINGET_PATH_LETTER = "t"
           $PACKAGE_ID = "$PUBLISHER.$PRODUCT_NAME"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "publisher=$PUBLISHER"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "package_id=$PACKAGE_ID"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "winget_path_letter=$WINGET_PATH_LETTER"
 
       - name: Create manifest directory structure
         run: |
           $VERSION = "${{ needs.prepare-artifacts.outputs.version }}"
+          $PATH_LETTER = "${{ steps.metadata.outputs.winget_path_letter }}"
           $PUBLISHER = "${{ steps.metadata.outputs.publisher }}"
           $PACKAGE_NAME = "${{ steps.metadata.outputs.product_name }}"
           
-          # Create directory: manifests/b/bthos/TimeTracker/0.2.3/
-          # Structure: manifests/b/<Publisher>/<PackageName>/<Version>/
-          New-Item -ItemType Directory -Force -Path "manifests\b\$PUBLISHER\$PACKAGE_NAME\$VERSION" | Out-Null
+          # Create directory: manifests/t/tmtrckr/TimeTracker/<version>/
+          # Structure: manifests/<letter>/<publisher>/<PackageName>/<Version>/
+          New-Item -ItemType Directory -Force -Path "manifests\$PATH_LETTER\$PUBLISHER\$PACKAGE_NAME\$VERSION" | Out-Null
 
       - name: Generate locale manifest
         run: |
@@ -278,7 +281,8 @@ jobs:
           
           # Filename format: <PackageIdentifier>.locale.<language-code>.yaml
           $LOCALE_FILENAME = "$PACKAGE_ID.locale.en-US.yaml"
-          $MANIFEST_PATH = "manifests\b\$PUBLISHER\$PRODUCT_NAME\$VERSION\$LOCALE_FILENAME"
+          $PATH_LETTER = "${{ steps.metadata.outputs.winget_path_letter }}"
+          $MANIFEST_PATH = "manifests\$PATH_LETTER\$PUBLISHER\$PRODUCT_NAME\$VERSION\$LOCALE_FILENAME"
           
           # Generate defaultLocale manifest according to multi-file schema v1.10.0
           # Field order: PackageIdentifier, PackageVersion, PackageLocale, Publisher, PublisherUrl, 
@@ -296,7 +300,7 @@ jobs:
           $manifestContent += "PackageUrl: https://github.com/${{ github.repository }}`n"
           $manifestContent += "License: MIT`n"
           $manifestContent += "LicenseUrl: https://github.com/${{ github.repository }}/blob/main/LICENSE`n"
-          $manifestContent += "Copyright: Copyright (c) 2026 bthos`n"
+          $manifestContent += "Copyright: Copyright (c) 2026 tmtrckr`n"
           $manifestContent += "CopyrightUrl: https://github.com/${{ github.repository }}`n"
           $manifestContent += "ShortDescription: $SHORT_DESC`n"
           $manifestContent += "Description: $DESCRIPTION`n"
@@ -321,7 +325,8 @@ jobs:
           
           # Filename format: <PackageIdentifier>.installer.yaml
           $INSTALLER_FILENAME = "$PACKAGE_ID.installer.yaml"
-          $MANIFEST_PATH = "manifests\b\$PUBLISHER\$PRODUCT_NAME\$VERSION\$INSTALLER_FILENAME"
+          $PATH_LETTER = "${{ steps.metadata.outputs.winget_path_letter }}"
+          $MANIFEST_PATH = "manifests\$PATH_LETTER\$PUBLISHER\$PRODUCT_NAME\$VERSION\$INSTALLER_FILENAME"
           
           # Generate installer manifest according to multi-file schema v1.10.0
           # Field order: PackageIdentifier, PackageVersion, Installers, ManifestType, ManifestVersion
@@ -352,7 +357,8 @@ jobs:
           
           # Filename format: <PackageIdentifier>.yaml
           $VERSION_FILENAME = "$PACKAGE_ID.yaml"
-          $MANIFEST_PATH = "manifests\b\$PUBLISHER\$PRODUCT_NAME\$VERSION\$VERSION_FILENAME"
+          $PATH_LETTER = "${{ steps.metadata.outputs.winget_path_letter }}"
+          $MANIFEST_PATH = "manifests\$PATH_LETTER\$PUBLISHER\$PRODUCT_NAME\$VERSION\$VERSION_FILENAME"
           
           # Generate version manifest according to multi-file schema v1.10.0
           $manifestContent = "# Created with GitHub Actions`n"
@@ -788,22 +794,22 @@ jobs:
           git checkout -b "$BRANCH_NAME"
           
           # Create directory structure if it doesn't exist
-          # Structure: manifests/b/<Publisher>/<PackageName>/<Version>/
-          mkdir -p manifests/b/bthos/TimeTracker
+          # Structure: manifests/t/tmtrckr/<PackageName>/<Version>/
+          mkdir -p manifests/t/tmtrckr/TimeTracker
           
           # Copy manifests to correct location
-          # Structure: manifests/b/bthos/TimeTracker/VERSION/
-          if [ -d "../winget-manifests/manifests/b/bthos/TimeTracker/$VERSION" ]; then
-            cp -r ../winget-manifests/manifests/b/bthos/TimeTracker/$VERSION manifests/b/bthos/TimeTracker/
+          # Structure: manifests/t/tmtrckr/TimeTracker/VERSION/
+          if [ -d "../winget-manifests/manifests/t/tmtrckr/TimeTracker/$VERSION" ]; then
+            cp -r ../winget-manifests/manifests/t/tmtrckr/TimeTracker/$VERSION manifests/t/tmtrckr/TimeTracker/
           else
-            echo "::error::Manifest directory not found: ../winget-manifests/manifests/b/bthos/TimeTracker/$VERSION"
-            ls -la ../winget-manifests/manifests/b/ || echo "Manifests directory structure:"
-            find ../winget-manifests -type d -name "*bthos*" -o -name "*TimeTracker*" || echo "No manifest directories found"
+            echo "::error::Manifest directory not found: ../winget-manifests/manifests/t/tmtrckr/TimeTracker/$VERSION"
+            ls -la ../winget-manifests/manifests/t/ || echo "Manifests directory structure:"
+            find ../winget-manifests -type d -name "*tmtrckr*" -o -name "*TimeTracker*" || echo "No manifest directories found"
             exit 1
           fi
           
           # Stage changes
-          git add manifests/b/bthos/TimeTracker/$VERSION/
+          git add manifests/t/tmtrckr/TimeTracker/$VERSION/
           
           # Commit
           git commit -m "Add TimeTracker version $VERSION"
