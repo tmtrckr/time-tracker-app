@@ -45,12 +45,12 @@ const Docs: FC = () => {
   ];
 
   return (
-    <section id="docs" className="py-16 px-4 bg-white">
+    <section className="py-16 px-4 bg-white dark:bg-gray-900">
       <div className="container mx-auto max-w-6xl">
-        <h2 className="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-4">
+        <h2 className="text-3xl md:text-4xl font-bold text-center text-gray-900 dark:text-white mb-4">
           Documentation
         </h2>
-        <p className="text-center text-gray-600 mb-12 max-w-2xl mx-auto">
+        <p className="text-center text-gray-600 dark:text-gray-400 mb-12 max-w-2xl mx-auto">
           Comprehensive guides and API references for developing plugins and extending TimeTracker
         </p>
         
@@ -63,22 +63,22 @@ const Docs: FC = () => {
                 href={doc.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="bg-gray-50 rounded-lg p-6 border border-gray-200 hover:border-primary-600 hover:shadow-lg transition-all group"
+                className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700 hover:border-primary-600 dark:hover:border-primary-500 hover:shadow-lg transition-all group"
               >
                 <div className="mb-4 flex items-center justify-between">
-                  <IconComponent className="w-8 h-8 text-primary-600" />
-                  <ExternalLink className="w-5 h-5 text-gray-400 group-hover:text-primary-600 transition-colors" />
+                  <IconComponent className="w-8 h-8 text-primary-600 dark:text-primary-400" />
+                  <ExternalLink className="w-5 h-5 text-gray-400 dark:text-gray-500 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors" />
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-primary-600 transition-colors">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
                   {doc.title}
                 </h3>
-                <p className="text-gray-600 text-sm mb-4">
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   {doc.description}
                 </p>
                 <ul className="space-y-2">
                   {doc.features.map((feature, featureIndex) => (
-                    <li key={featureIndex} className="text-sm text-gray-500 flex items-start">
-                      <span className="text-primary-600 mr-2">•</span>
+                    <li key={featureIndex} className="text-sm text-gray-500 dark:text-gray-400 flex items-start">
+                      <span className="text-primary-600 dark:text-primary-400 mr-2">•</span>
                       <span>{feature}</span>
                     </li>
                   ))}
@@ -88,14 +88,14 @@ const Docs: FC = () => {
           })}
         </div>
 
-        <div className="bg-gradient-to-r from-primary-50 to-primary-100 rounded-lg p-8 border border-primary-200">
-          <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Links</h3>
+        <div className="bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900 dark:to-primary-800 rounded-lg p-8 border border-primary-200 dark:border-primary-700">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Quick Links</h3>
           <div className="grid md:grid-cols-2 gap-4">
             <a
               href={getGitHubUrl('/tree/main/docs')}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center text-primary-600 hover:text-primary-700 font-semibold group"
+              className="flex items-center text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-semibold group"
             >
               <FileText className="w-5 h-5 mr-2" />
               Browse all documentation
@@ -105,7 +105,7 @@ const Docs: FC = () => {
               href={getGitHubUrl('/issues')}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center text-primary-600 hover:text-primary-700 font-semibold group"
+              className="flex items-center text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-semibold group"
             >
               <FileText className="w-5 h-5 mr-2" />
               Report documentation issues

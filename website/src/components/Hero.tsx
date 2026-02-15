@@ -10,15 +10,15 @@ const Hero: FC = () => {
   };
 
   return (
-    <section className="pt-24 pb-16 px-4 bg-gradient-to-b from-gray-50 to-white">
+    <section className="pt-24 pb-16 px-4 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
       <div className="container mx-auto max-w-6xl">
         <div className="grid md:grid-cols-2 gap-12 items-center">
           <div className="space-y-6">
-            <h1 className="text-5xl md:text-6xl font-bold text-gray-900 leading-tight">
+            <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-white leading-tight">
               Never Lose Billable
-              <span className="block text-primary-600">Time Again</span>
+              <span className="block text-primary-600 dark:text-primary-400">Time Again</span>
             </h1>
-            <p className="text-xl text-gray-600 leading-relaxed">
+            <p className="text-xl text-gray-600 dark:text-gray-300 leading-relaxed">
               Desktop application for automatic time tracking with professional billing features. 
               Works locally, protects your privacy.
             </p>
@@ -33,12 +33,12 @@ const Hero: FC = () => {
                 href={getGitHubUrl()}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="border-2 border-gray-300 text-gray-700 px-8 py-4 rounded-lg text-lg font-semibold hover:border-primary-600 hover:text-primary-600 transition-colors text-center"
+                className="border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-8 py-4 rounded-lg text-lg font-semibold hover:border-primary-600 dark:hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors text-center"
               >
                 View on GitHub
               </a>
             </div>
-            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 pt-4">
+            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400 pt-4">
               <div className="flex items-center space-x-2">
                 <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -66,7 +66,7 @@ const Hero: FC = () => {
             </div>
           </div>
           <div className="relative">
-            <div className="rounded-lg shadow-2xl overflow-hidden border border-gray-200">
+            <div className="rounded-lg shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700">
               <img
                 src={getAssetPath('/screenshots/reports.png')}
                 alt="TimeTracker Reports & Analytics"
@@ -74,10 +74,10 @@ const Hero: FC = () => {
                 loading="eager"
               />
             </div>
-            <div className="absolute -bottom-4 -right-4 bg-white rounded-lg shadow-lg p-4 border border-gray-200 hidden md:block">
+            <div className="absolute -bottom-4 -right-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-200 dark:border-gray-700 hidden md:block">
               <div className="flex items-center space-x-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-semibold text-gray-700">6h 9m Tracking</span>
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">6h 9m Tracking</span>
               </div>
             </div>
           </div>

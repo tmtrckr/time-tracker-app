@@ -24,7 +24,7 @@ const Footer: FC = () => {
             <h4 className="font-semibold text-white mb-4">Product</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <a href="#features" className="hover:text-white transition-colors">
+                <a href="/#features" className="hover:text-white transition-colors">
                   Features
                 </a>
               </li>
@@ -39,12 +39,12 @@ const Footer: FC = () => {
                 </Link>
               </li>
               <li>
-                <a href="#screenshots" className="hover:text-white transition-colors">
+                <a href="/#screenshots" className="hover:text-white transition-colors">
                   Screenshots
                 </a>
               </li>
               <li>
-                <a href="#download" className="hover:text-white transition-colors">
+                <a href="/#download" className="hover:text-white transition-colors">
                   Download
                 </a>
               </li>
@@ -54,6 +54,11 @@ const Footer: FC = () => {
           <div>
             <h4 className="font-semibold text-white mb-4">Resources</h4>
             <ul className="space-y-2 text-sm">
+              <li>
+                <Link to="/docs" className="hover:text-white transition-colors">
+                  Documentation
+                </Link>
+              </li>
               <li>
                 <a
                   href={getGitHubUrl()}
@@ -101,7 +106,7 @@ const Footer: FC = () => {
                 </a>
               </li>
               <li>
-                <a href="#faq" className="hover:text-white transition-colors">
+                <a href="/#faq" className="hover:text-white transition-colors">
                   FAQ
                 </a>
               </li>

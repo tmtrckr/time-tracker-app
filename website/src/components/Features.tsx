@@ -56,12 +56,12 @@ const Features: FC = () => {
   ];
 
   return (
-    <section id="features" className="py-16 px-4 bg-gray-50">
+    <section id="features" className="py-16 px-4 bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto max-w-6xl">
-        <h2 className="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-4">
+        <h2 className="text-3xl md:text-4xl font-bold text-center text-gray-900 dark:text-white mb-4">
           Powerful Features
         </h2>
-        <p className="text-center text-gray-600 mb-12 max-w-2xl mx-auto">
+        <p className="text-center text-gray-600 dark:text-gray-400 mb-12 max-w-2xl mx-auto">
           Everything you need to track your time accurately and understand where it goes
         </p>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -73,17 +73,17 @@ const Features: FC = () => {
                 <div className="mb-3">
                   <IconComponent className={`w-8 h-8 ${isHighlighted ? 'text-primary-600' : 'text-primary-600'}`} />
                 </div>
-                <h3 className={`text-lg font-semibold mb-2 ${isHighlighted ? 'text-primary-600' : 'text-gray-900'}`}>
+                <h3 className={`text-lg font-semibold mb-2 ${isHighlighted ? 'text-primary-600 dark:text-primary-400' : 'text-gray-900 dark:text-white'}`}>
                   {feature.title}
                 </h3>
-                <p className="text-gray-600 text-sm">{feature.description}</p>
+                <p className="text-gray-600 dark:text-gray-400 text-sm">{feature.description}</p>
               </>
             );
 
-            const className = `bg-white rounded-lg p-6 border transition-all ${
+            const className = `bg-white dark:bg-gray-800 rounded-lg p-6 border transition-all ${
               isHighlighted
-                ? 'border-primary-600 shadow-md hover:shadow-lg hover:border-primary-700'
-                : 'border-gray-200 hover:shadow-lg'
+                ? 'border-primary-600 dark:border-primary-500 shadow-md hover:shadow-lg hover:border-primary-700 dark:hover:border-primary-400'
+                : 'border-gray-200 dark:border-gray-700 hover:shadow-lg'
             }`;
 
             if (feature.link) {

@@ -11,7 +11,6 @@ import UseCases from '../components/UseCases';
 import Screenshots from '../components/Screenshots';
 import Trust from '../components/Trust';
 import Download from '../components/Download';
-import Docs from '../components/Docs';
 import FAQ from '../components/FAQ';
 import Footer from '../components/Footer';
 
@@ -19,19 +18,22 @@ function Home() {
   const location = useLocation();
 
   useEffect(() => {
-    // Handle hash navigation when coming from other pages
-    if (location.hash) {
-      const element = document.getElementById(location.hash.substring(1));
+    // Handle hash navigation when coming from other pages or on initial load
+    const hash = window.location.hash || location.hash;
+    if (hash) {
+      const id = hash.substring(1); // Remove the # symbol
+      const element = document.getElementById(id);
       if (element) {
+        // Small delay to ensure page is rendered
         setTimeout(() => {
           element.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
+        }, 150);
       }
     }
   }, [location]);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white dark:bg-gray-900">
       <Header />
       <main>
         <Hero />
@@ -44,7 +46,6 @@ function Home() {
         <Screenshots />
         <Trust />
         <Download />
-        <Docs />
         <FAQ />
       </main>
       <Footer />

@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import Header from '../components/Header';
-import PluginMarketplace from '../components/PluginMarketplace';
+import Docs from '../components/Docs';
 import Footer from '../components/Footer';
 
-function Marketplace() {
+function DocsPage() {
   useEffect(() => {
     // Scroll to top when component mounts
     window.scrollTo(0, 0);
@@ -13,11 +13,11 @@ function Marketplace() {
     <div className="min-h-screen bg-white dark:bg-gray-900">
       <Header />
       <main>
-        <PluginMarketplace />
+        <Docs />
       </main>
       <Footer />
     </div>
   );
 }
 
-export default Marketplace;
+export default DocsPage;

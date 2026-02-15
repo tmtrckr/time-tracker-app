@@ -1,80 +1,94 @@
 import { useState, FC } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Timer } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Timer, Store, BookOpen } from 'lucide-react';
 import { getGitHubUrl } from '../config';
+import ThemeToggle from './ThemeToggle';
 
 const Header: FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
-  const scrollToSection = (id: string) => {
-    // Only scroll if we're on the home page
+  const handleSectionClick = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsMenuOpen(false);
+    
+    // If we're on the home page, scroll directly
     if (location.pathname === '/' || location.pathname === '') {
       const element = document.getElementById(id);
       if (element) {
+        window.location.hash = id;
         element.scrollIntoView({ behavior: 'smooth' });
-        setIsMenuOpen(false);
       }
     } else {
-      // Navigate to home page with hash
+      // Navigate to home page with hash in the URL
+      // Using window.location to ensure hash is preserved
       window.location.href = `/#${id}`;
-      setIsMenuOpen(false);
     }
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-sm shadow-sm z-50">
+    <header className="fixed top-0 left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm shadow-sm z-50">
       <nav className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center space-x-2">
             <Timer className="w-6 h-6 text-primary-600" />
-            <span className="text-xl font-bold text-gray-900">TimeTracker</span>
+            <span className="text-xl font-bold text-gray-900 dark:text-white">TimeTracker</span>
           </Link>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
             <Link
               to="/"
-              className="text-gray-700 hover:text-primary-600 transition-colors"
+              className="text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
             >
               Home
             </Link>
-            <button
-              onClick={() => scrollToSection('features')}
-              className="text-gray-700 hover:text-primary-600 transition-colors"
+            <a
+              href="#features"
+              onClick={(e) => handleSectionClick('features', e)}
+              className="text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
             >
               Features
-            </button>
-            <Link
-              to="/marketplace"
-              className="text-gray-700 hover:text-primary-600 transition-colors"
-            >
-              Marketplace
-            </Link>
-            <button
-              onClick={() => scrollToSection('screenshots')}
-              className="text-gray-700 hover:text-primary-600 transition-colors"
-            >
-              Screenshots
-            </button>
-            <button
-              onClick={() => scrollToSection('download')}
-              className="text-gray-700 hover:text-primary-600 transition-colors"
+            </a>
+            <a
+              href="#download"
+              onClick={(e) => handleSectionClick('download', e)}
+              className="text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
             >
               Download
-            </button>
-            <button
-              onClick={() => scrollToSection('docs')}
-              className="text-gray-700 hover:text-primary-600 transition-colors"
+            </a>
+            <a
+              href="#screenshots"
+              onClick={(e) => handleSectionClick('screenshots', e)}
+              className="text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
             >
-              Docs
-            </button>
-            <button
-              onClick={() => scrollToSection('faq')}
-              className="text-gray-700 hover:text-primary-600 transition-colors"
+              Screenshots
+            </a>
+            <Link
+              to="/marketplace"
+              className="p-2 text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+              title="Marketplace"
+              aria-label="Marketplace"
+            >
+              <Store className="w-5 h-5" />
+            </Link>
+            <Link
+              to="/docs"
+              className="p-2 text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+              title="Documentation"
+              aria-label="Documentation"
+            >
+              <BookOpen className="w-5 h-5" />
+            </Link>
+            <a
+              href="#faq"
+              onClick={(e) => handleSectionClick('faq', e)}
+              className="text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
             >
               FAQ
-            </button>
+            </a>
+            <ThemeToggle />
             <a
               href={getGitHubUrl()}
               target="_blank"
@@ -86,11 +100,13 @@ const Header: FC = () => {
           </div>
 
           {/* Mobile Menu Button */}
-          <button
-            className="md:hidden text-gray-700"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            aria-label="Toggle menu"
-          >
+          <div className="md:hidden flex items-center gap-2">
+            <ThemeToggle />
+            <button
+              className="text-gray-700 dark:text-gray-300"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              aria-label="Toggle menu"
+            >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {isMenuOpen ? (
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -98,7 +114,8 @@ const Header: FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               )}
             </svg>
-          </button>
+            </button>
+          </div>
         </div>
 
         {/* Mobile Menu */}
@@ -107,47 +124,52 @@ const Header: FC = () => {
             <Link
               to="/"
               onClick={() => setIsMenuOpen(false)}
-              className="block w-full text-left text-gray-700 hover:text-primary-600 transition-colors"
+              className="block w-full text-left text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
             >
               Home
             </Link>
-            <button
-              onClick={() => scrollToSection('features')}
-              className="block w-full text-left text-gray-700 hover:text-primary-600 transition-colors"
+            <a
+              href="#features"
+              onClick={(e) => handleSectionClick('features', e)}
+              className="block w-full text-left text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
             >
               Features
-            </button>
+            </a>
+            <a
+              href="#download"
+              onClick={(e) => handleSectionClick('download', e)}
+              className="block w-full text-left text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+            >
+              Download
+            </a>
+            <a
+              href="#screenshots"
+              onClick={(e) => handleSectionClick('screenshots', e)}
+              className="block w-full text-left text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+            >
+              Screenshots
+            </a>
             <Link
               to="/marketplace"
               onClick={() => setIsMenuOpen(false)}
-              className="block w-full text-left text-gray-700 hover:text-primary-600 transition-colors"
+              className="block w-full text-left text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
             >
               Marketplace
             </Link>
-            <button
-              onClick={() => scrollToSection('screenshots')}
-              className="block w-full text-left text-gray-700 hover:text-primary-600 transition-colors"
-            >
-              Screenshots
-            </button>
-            <button
-              onClick={() => scrollToSection('download')}
-              className="block w-full text-left text-gray-700 hover:text-primary-600 transition-colors"
-            >
-              Download
-            </button>
-            <button
-              onClick={() => scrollToSection('docs')}
-              className="block w-full text-left text-gray-700 hover:text-primary-600 transition-colors"
+            <Link
+              to="/docs"
+              onClick={() => setIsMenuOpen(false)}
+              className="block w-full text-left text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
             >
               Docs
-            </button>
-            <button
-              onClick={() => scrollToSection('faq')}
-              className="block w-full text-left text-gray-700 hover:text-primary-600 transition-colors"
+            </Link>
+            <a
+              href="#faq"
+              onClick={(e) => handleSectionClick('faq', e)}
+              className="block w-full text-left text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
             >
               FAQ
-            </button>
+            </a>
             <a
               href={getGitHubUrl()}
               target="_blank"
