@@ -17,17 +17,16 @@ const Header: FC = () => {
     if (location.pathname === '/' || location.pathname === '') {
       const element = document.getElementById(id);
       if (element) {
-        // Update URL hash and scroll
-        window.location.hash = id;
+        // Use history API to update hash without triggering route change
+        window.history.replaceState(null, '', `#${id}`);
         setTimeout(() => {
           element.scrollIntoView({ behavior: 'smooth' });
         }, 10);
       }
     } else {
-      // Navigate to home page with hash, then scroll after navigation
-      // Store the target section ID
+      // Navigate to home page first, then scroll after navigation completes
       sessionStorage.setItem('scrollToSection', id);
-      navigate('/');
+      navigate('/', { replace: false });
     }
   };
 

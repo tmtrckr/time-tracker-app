@@ -24,32 +24,34 @@ function Home() {
       const scrollToSection = sessionStorage.getItem('scrollToSection');
       if (scrollToSection) {
         sessionStorage.removeItem('scrollToSection');
-        const element = document.getElementById(scrollToSection);
-        if (element) {
-          window.location.hash = scrollToSection;
-          setTimeout(() => {
+        // Wait for page to fully render
+        setTimeout(() => {
+          const element = document.getElementById(scrollToSection);
+          if (element) {
+            // Use history API to set hash without triggering route change
+            window.history.replaceState(null, '', `#${scrollToSection}`);
             element.scrollIntoView({ behavior: 'smooth' });
-          }, 200);
-          return;
-        }
+          }
+        }, 300);
+        return;
       }
 
       // Otherwise check hash in URL
       const hash = window.location.hash;
       if (hash) {
         const id = hash.substring(1); // Remove the # symbol
-        const element = document.getElementById(id);
-        if (element) {
-          // Small delay to ensure page is rendered
-          setTimeout(() => {
+        // Wait for page to fully render
+        setTimeout(() => {
+          const element = document.getElementById(id);
+          if (element) {
             element.scrollIntoView({ behavior: 'smooth' });
-          }, 200);
-        }
+          }
+        }, 200);
       }
     };
 
-    // Check hash on mount
-    handleHashNavigation();
+    // Check hash on mount with delay to ensure page is rendered
+    setTimeout(handleHashNavigation, 100);
 
     // Also listen for hash changes
     window.addEventListener('hashchange', handleHashNavigation);

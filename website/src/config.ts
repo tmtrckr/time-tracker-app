@@ -24,6 +24,18 @@ export const getLatestReleaseUrl = () => {
 };
 
 /**
+ * Get the raw GitHub content URL for files
+ * This is used for fetching markdown files and other raw content
+ * @param path - Path to the file (e.g., '/docs/README.md')
+ * @returns Raw GitHub content URL
+ */
+export const getGitHubRawUrl = (path: string) => {
+  // Remove leading slash if present
+  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+  return `https://raw.githubusercontent.com/${config.github.username}/${config.github.repository}/main/${cleanPath}`;
+};
+
+/**
  * Get the correct path for public assets (images, etc.)
  * This function ensures that paths work correctly with Vite's base path configuration
  * @param path - Path to the asset (e.g., '/screenshots/reports.png')

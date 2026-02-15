@@ -32,15 +32,17 @@ const ThemeToggle: FC = () => {
   };
 
   const getTogglePosition = () => {
+    // Container is w-16 (64px), thumb is w-6 (24px)
+    // Positions: Light (0px), System (20px), Dark (40px)
     switch (theme) {
       case 'light':
         return 'translate-x-0';
       case 'dark':
-        return 'translate-x-full';
+        return 'translate-x-[40px]'; // 64px - 24px = 40px
       case 'system':
-        return 'translate-x-[50%]';
+        return 'translate-x-[20px]'; // (64px - 24px) / 2 = 20px
       default:
-        return 'translate-x-[50%]';
+        return 'translate-x-[20px]';
     }
   };
 

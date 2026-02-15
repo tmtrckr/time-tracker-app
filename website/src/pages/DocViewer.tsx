@@ -4,12 +4,12 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import MarkdownRenderer from '../components/MarkdownRenderer';
-import { getGitHubUrl } from '../config';
+import { getGitHubUrl, getGitHubRawUrl } from '../config';
 
 const DOC_URLS: Record<string, string> = {
-  'overview': getGitHubUrl('/raw/main/docs/README.md'),
-  'plugin-development': getGitHubUrl('/raw/main/docs/PLUGIN_DEVELOPMENT.md'),
-  'sdk-reference': getGitHubUrl('/raw/main/docs/SDK_REFERENCE.md'),
+  'overview': getGitHubRawUrl('docs/README.md'),
+  'plugin-development': getGitHubRawUrl('docs/PLUGIN_DEVELOPMENT.md'),
+  'sdk-reference': getGitHubRawUrl('docs/SDK_REFERENCE.md'),
 };
 
 const DOC_TITLES: Record<string, string> = {
