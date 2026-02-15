@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import { Zap, Rocket, Target, DollarSign, Folder, Globe, Timer, BarChart, Lock, Monitor } from 'lucide-react';
+import { Zap, Rocket, Target, DollarSign, Folder, Globe, Timer, BarChart, Lock, Monitor, Puzzle } from 'lucide-react';
 
 const Features: FC = () => {
   const features = [
@@ -42,6 +42,11 @@ const Features: FC = () => {
       title: 'Reports & Analytics',
       description: 'Daily/weekly/monthly reports with charts, category breakdown, and insights',
       Icon: BarChart,
+    },
+    {
+      title: 'Plugin System',
+      description: 'Extensible architecture with Plugin SDK. Build custom plugins or install from marketplace',
+      Icon: Puzzle,
     },
     {
       title: 'Privacy-First',

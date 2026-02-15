@@ -28,6 +28,11 @@ const Footer: FC = () => {
                 </a>
               </li>
               <li>
+                <a href="#plugins" className="hover:text-white transition-colors">
+                  Plugins
+                </a>
+              </li>
+              <li>
                 <a href="#screenshots" className="hover:text-white transition-colors">
                   Screenshots
                 </a>

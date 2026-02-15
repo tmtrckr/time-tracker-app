@@ -4,6 +4,7 @@ import Stats from './components/Stats';
 import KeyBenefits from './components/KeyBenefits';
 import WhyChoose from './components/WhyChoose';
 import Features from './components/Features';
+import Plugins from './components/Plugins';
 import UseCases from './components/UseCases';
 import Screenshots from './components/Screenshots';
 import Trust from './components/Trust';
@@ -22,6 +23,7 @@ function App() {
         <KeyBenefits />
         <WhyChoose />
         <Features />
+        <Plugins />
         <UseCases />
         <Screenshots />
         <Trust />
