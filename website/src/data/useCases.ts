@@ -16,8 +16,8 @@ export const useCases: UseCase[] = [
     description: 'Never lose billable hours. Track time across multiple clients with automatic revenue calculations and seamless invoicing.',
     Icon: Briefcase,
     features: [
-      'Billable hours tracking with hourly rates',
-      'Project and client management',
+      'Billable hours tracking with hourly rates (Billing plugin)',
+      'Project and client management (Projects/Tasks plugin)',
       'CSV export for invoicing',
       'Manual entry for offline meetings'
     ],
@@ -31,8 +31,8 @@ export const useCases: UseCase[] = [
     features: [
       'IDE and application tracking',
       'Domain tracking (GitHub, Stack Overflow)',
-      'Pomodoro timer for focused work',
-      'Project and task integration'
+      'Pomodoro timer for focused work (Pomodoro plugin)',
+      'Project and task integration (Projects/Tasks plugin)'
     ],
     targetAudience: 'Developers, IT Specialists, Software Engineers'
   },
@@ -43,8 +43,8 @@ export const useCases: UseCase[] = [
     Icon: Building2,
     features: [
       'Client reporting and transparency',
-      'Project breakdown analysis',
-      'Billable vs non-billable insights',
+      'Project breakdown analysis (Projects/Tasks plugin)',
+      'Billable vs non-billable insights (Billing plugin)',
       'Export to CSV/JSON for accounting'
     ],
     targetAudience: 'Consulting Firms, Agencies, Service Providers'
@@ -68,8 +68,8 @@ export const useCases: UseCase[] = [
     description: 'Track study time and research activities. Set goals and improve focus with Pomodoro timer and productivity analytics.',
     Icon: GraduationCap,
     features: [
-      'Goal setting (daily/weekly/monthly)',
-      'Pomodoro timer for study sessions',
+      'Goal setting (daily/weekly/monthly) (Goals plugin)',
+      'Pomodoro timer for study sessions (Pomodoro plugin)',
       'Productivity analytics',
       'Research activity tracking'
     ],

@@ -26,28 +26,6 @@ const Plugins: FC = () => {
     },
   ];
 
-  const availablePlugins = [
-    {
-      name: 'Pomodoro Timer',
-      description: 'Focus session tracking with timer support, integrated with projects and tasks',
-      status: 'Available',
-    },
-    {
-      name: 'Projects & Tasks',
-      description: 'Complete project and task management system with full CRUD operations',
-      status: 'Available',
-    },
-    {
-      name: 'Goals',
-      description: 'Daily/weekly/monthly goals with progress tracking and alerts',
-      status: 'Available',
-    },
-    {
-      name: 'Billing',
-      description: 'Billable time tracking with hourly rates and revenue calculations',
-      status: 'Available',
-    },
-  ];
 
   return (
     <section id="plugins" className="py-16 px-4 bg-white">
@@ -88,31 +66,15 @@ const Plugins: FC = () => {
           })}
         </div>
 
-        {/* Available Plugins */}
-        <div className="mb-12">
-          <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-            Available Plugins
-          </h3>
-          <div className="grid md:grid-cols-2 gap-4">
-            {availablePlugins.map((plugin, index) => (
-              <div
-                key={index}
-                className="bg-gray-50 rounded-lg p-6 border border-gray-200 hover:border-primary-600 transition-all"
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <h4 className="text-lg font-semibold text-gray-900">
-                    {plugin.name}
-                  </h4>
-                  <span className="px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded">
-                    {plugin.status}
-                  </span>
-                </div>
-                <p className="text-gray-600 text-sm">
-                  {plugin.description}
-                </p>
-              </div>
-            ))}
-          </div>
+        {/* Link to Marketplace */}
+        <div className="mb-12 text-center">
+          <a
+            href="#marketplace"
+            className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700 font-semibold text-lg"
+          >
+            Browse Plugin Marketplace
+            <Download className="w-5 h-5" />
+          </a>
         </div>
 
         {/* Developer Information */}

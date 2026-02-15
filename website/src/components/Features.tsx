@@ -20,12 +20,12 @@ const Features: FC = () => {
     },
     {
       title: 'Billable Time Tracking',
-      description: 'Track billable hours with hourly rates and automatic revenue calculations',
+      description: 'Track billable hours with hourly rates and automatic revenue calculations (via Billing plugin)',
       Icon: DollarSign,
     },
     {
       title: 'Project/Task Management',
-      description: 'Organize your time by projects and tasks with full CRUD operations',
+      description: 'Organize your time by projects and tasks with full CRUD operations (via Projects/Tasks plugin)',
       Icon: Folder,
     },
     {
@@ -35,7 +35,7 @@ const Features: FC = () => {
     },
     {
       title: 'Pomodoro Timer',
-      description: 'Built-in Pomodoro timer with focus session tracking integrated with projects',
+      description: 'Pomodoro timer with focus session tracking integrated with projects (via Pomodoro plugin)',
       Icon: Timer,
     },
     {

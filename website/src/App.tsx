@@ -5,6 +5,7 @@ import KeyBenefits from './components/KeyBenefits';
 import WhyChoose from './components/WhyChoose';
 import Features from './components/Features';
 import Plugins from './components/Plugins';
+import PluginMarketplace from './components/PluginMarketplace';
 import UseCases from './components/UseCases';
 import Screenshots from './components/Screenshots';
 import Trust from './components/Trust';
@@ -24,6 +25,7 @@ function App() {
         <WhyChoose />
         <Features />
         <Plugins />
+        <PluginMarketplace />
         <UseCases />
         <Screenshots />
         <Trust />

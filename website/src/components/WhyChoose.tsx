@@ -17,7 +17,7 @@ const WhyChoose: FC = () => {
     },
     {
       title: 'Professional Billing Features',
-      description: 'Built-in billable time tracking with revenue calculations. Export to CSV/JSON for invoicing.',
+      description: 'Billable time tracking with revenue calculations via Billing plugin. Export to CSV/JSON for invoicing.',
       comparison: 'More comprehensive than RescueTime, which focuses on productivity over billing',
       Icon: DollarSign,
     },

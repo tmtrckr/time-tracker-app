@@ -19,7 +19,7 @@ const FAQ: React.FC = () => {
     },
     {
       question: 'Is it suitable for freelancers billing clients?',
-      answer: 'Absolutely! TimeTracker is perfect for freelancers and consultants. It includes full billable time tracking with hourly rates, automatic revenue calculations, and CSV export for easy invoicing. You can track time across multiple clients and projects, mark activities as billable or non-billable, and generate detailed reports for client transparency.',
+      answer: 'Absolutely! TimeTracker is perfect for freelancers and consultants. Install the Billing plugin for full billable time tracking with hourly rates and automatic revenue calculations. The Projects/Tasks plugin helps you organize time across multiple clients and projects. You can mark activities as billable or non-billable, generate detailed reports for client transparency, and export to CSV for easy invoicing.',
     },
     {
       question: 'How does it compare to Toggl or Clockify?',
@@ -47,7 +47,7 @@ const FAQ: React.FC = () => {
     },
     {
       question: 'Can I track billable hours?',
-      answer: 'Yes! TimeTracker includes full billable time tracking with hourly rates. You can mark categories or projects as billable, set hourly rates, and track revenue automatically. Reports show billable vs non-billable breakdown, and you can export data to CSV for invoicing. Perfect for freelancers, consultants, and agencies.',
+      answer: 'Yes! Install the Billing plugin for full billable time tracking with hourly rates. You can mark categories or projects as billable, set hourly rates, and track revenue automatically. Reports show billable vs non-billable breakdown, and you can export data to CSV for invoicing. Combine it with the Projects/Tasks plugin for complete project and client management. Perfect for freelancers, consultants, and agencies.',
     },
     {
       question: 'What about idle time?',

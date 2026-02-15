@@ -33,6 +33,11 @@ const Footer: FC = () => {
                 </a>
               </li>
               <li>
+                <a href="#marketplace" className="hover:text-white transition-colors">
+                  Marketplace
+                </a>
+              </li>
+              <li>
                 <a href="#screenshots" className="hover:text-white transition-colors">
                   Screenshots
                 </a>

@@ -20,7 +20,7 @@ const KeyBenefits: FC = () => {
     },
     {
       problem: "Lose billable hours",
-      solution: "Automatic tracking with billable time calculation and revenue tracking",
+      solution: "Automatic tracking with billable time calculation and revenue tracking (Billing plugin)",
       Icon: DollarSign,
     },
     {

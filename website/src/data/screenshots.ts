@@ -20,9 +20,9 @@ export const screenshots: Screenshot[] = [
     features: [
       'Real-time tracking (6h 9m 18s)',
       'Productivity metrics (64%)',
-      'Billable hours ($15.32 revenue)',
-      'Goal progress tracking',
-      'Active project/task management'
+      'Billable hours ($15.32 revenue) (Billing plugin)',
+      'Goal progress tracking (Goals plugin)',
+      'Active project/task management (Projects/Tasks plugin)'
     ],
     alt: 'TimeTracker Dashboard showing productivity metrics and billable hours'
   },
@@ -44,7 +44,7 @@ export const screenshots: Screenshot[] = [
   {
     id: 'pomodoro',
     title: 'Pomodoro Timer',
-    description: 'Built-in Pomodoro timer with focus session tracking integrated with projects and tasks',
+    description: 'Pomodoro timer plugin with focus session tracking integrated with projects and tasks',
     image: getAssetPath('/screenshots/pomodoro.png'),
     thumbnail: getAssetPath('/screenshots/pomodoro.png'),
     features: [
@@ -65,9 +65,9 @@ export const screenshots: Screenshot[] = [
     features: [
       'Category breakdown (donut chart)',
       'Top applications ranking',
-      'Project breakdown analysis',
+      'Project breakdown analysis (Projects/Tasks plugin)',
       'Top websites tracking',
-      'Billable vs non-billable insights'
+      'Billable vs non-billable insights (Billing plugin)'
     ],
     alt: 'Reports dashboard with category breakdown and top applications'
   },
