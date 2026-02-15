@@ -1,5 +1,5 @@
 import { FC, useState, useEffect } from 'react';
-import { Package, ExternalLink, Star, Download, Search, Filter, CheckCircle, XCircle } from 'lucide-react';
+import { Package, ExternalLink, Download, Search, Filter, CheckCircle, XCircle } from 'lucide-react';
 
 interface Plugin {
   id: string;
@@ -207,7 +207,9 @@ const PluginMarketplace: FC = () => {
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="text-lg font-semibold text-gray-900">{plugin.name}</h3>
                       {plugin.verified && (
-                        <CheckCircle className="w-5 h-5 text-green-600" title="Verified plugin" />
+                        <span title="Verified plugin">
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                        </span>
                       )}
                     </div>
                     <p className="text-sm text-gray-500">by {plugin.author}</p>
