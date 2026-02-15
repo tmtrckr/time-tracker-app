@@ -57,9 +57,9 @@ const ThemeToggle: FC = () => {
     >
       {/* Background icons - always visible */}
       <div className="absolute inset-0 flex items-center justify-between px-1.5 pointer-events-none">
-        <Sun className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-        <Monitor className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-        <Moon className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+        <Sun className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 opacity-60 flex-shrink-0" />
+        <Monitor className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 opacity-60 flex-shrink-0" />
+        <Moon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 opacity-60 flex-shrink-0" />
       </div>
       {/* Thumb slider */}
       <div
